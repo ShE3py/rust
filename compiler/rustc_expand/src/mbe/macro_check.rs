@@ -114,7 +114,7 @@ use rustc_errors::{DiagnosticMessage, MultiSpan};
 use rustc_session::lint::builtin::{META_VARIABLE_MISUSE, MISSING_FRAGMENT_SPECIFIER};
 use rustc_session::parse::ParseSess;
 use rustc_span::symbol::kw;
-use rustc_span::{symbol::MacroRulesNormalizedIdent, Span};
+use rustc_span::{symbol::MacroRulesNormalizedIdent, ErrorGuaranteed, Span};
 
 use smallvec::SmallVec;
 
@@ -203,11 +203,11 @@ pub(super) fn check_meta_variables(
     span: Span,
     lhses: &[TokenTree],
     rhses: &[TokenTree],
-) -> bool {
+) -> Result<(), ErrorGuaranteed> {
     if lhses.len() != rhses.len() {
         sess.dcx.span_bug(span, "length mismatch between LHSes and RHSes")
     }
-    let mut valid = true;
+    let mut valid = Ok(());
     for (lhs, rhs) in iter::zip(lhses, rhses) {
         let mut binders = Binders::default();
         check_binders(sess, node_id, lhs, &Stack::Empty, &mut binders, &Stack::Empty, &mut valid);
@@ -234,7 +234,7 @@ fn check_binders(
     macros: &Stack<'_, MacroState<'_>>,
     binders: &mut Binders,
     ops: &Stack<'_, KleeneToken>,
-    valid: &mut bool,
+    valid: &mut Result<(), ErrorGuaranteed>,
 ) {
     match *lhs {
         TokenTree::Token(..) => {}
@@ -281,8 +281,10 @@ fn check_binders(
             if let Some(prev_info) = get_binder_info(macros, binders, name) {
                 // Duplicate binders at the top-level macro definition are errors. The lint is only
                 // for nested macro definitions.
-                sess.dcx.emit_err(errors::DuplicateMatcherBinding { span, prev: prev_info.span });
-                *valid = false;
+                let guar = sess
+                    .dcx
+                    .emit_err(errors::DuplicateMatcherBinding { span, prev: prev_info.span });
+                *valid = Err(guar);
             } else {
                 binders.insert(name, BinderInfo { span, ops: ops.into() });
             }
@@ -335,7 +337,7 @@ fn check_occurrences(
     macros: &Stack<'_, MacroState<'_>>,
     binders: &Binders,
     ops: &Stack<'_, KleeneToken>,
-    valid: &mut bool,
+    valid: &mut Result<(), ErrorGuaranteed>,
 ) {
     match *rhs {
         TokenTree::Token(..) => {}
@@ -400,7 +402,7 @@ fn check_nested_occurrences(
     macros: &Stack<'_, MacroState<'_>>,
     binders: &Binders,
     ops: &Stack<'_, KleeneToken>,
-    valid: &mut bool,
+    valid: &mut Result<(), ErrorGuaranteed>,
 ) {
     let mut state = NestedMacroState::Empty;
     let nested_macros = macros.push(MacroState { binders, ops: ops.into() });
@@ -522,7 +524,7 @@ fn check_nested_macro(
     macro_rules: bool,
     tts: &[TokenTree],
     macros: &Stack<'_, MacroState<'_>>,
-    valid: &mut bool,
+    valid: &mut Result<(), ErrorGuaranteed>,
 ) -> usize {
     let n = tts.len();
     let mut i = 0;

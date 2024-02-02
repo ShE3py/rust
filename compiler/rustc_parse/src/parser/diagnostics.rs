@@ -742,7 +742,8 @@ impl<'a> Parser<'a> {
         Err(err)
     }
 
-    pub(super) fn attr_on_non_tail_expr(&self, expr: &Expr) {
+    /// The user has written `#[attr] expr` which is unsupported. (#106020)
+    pub(super) fn attr_on_non_tail_expr(&self, expr: &Expr) -> ErrorGuaranteed {
         // Missing semicolon typo error.
         let span = self.prev_token.span.shrink_to_hi();
         let mut err = self.dcx().create_err(ExpectedSemi {
@@ -785,6 +786,8 @@ impl<'a> Parser<'a> {
                 ],
                 Applicability::MachineApplicable,
             );
+
+            // Special handling for `#[cfg(..)]` chains
             let mut snapshot = self.create_snapshot_for_diagnostic();
             if let [attr] = &expr.attrs[..]
                 && let ast::AttrKind::Normal(attr_kind) = &attr.kind
@@ -797,7 +800,7 @@ impl<'a> Parser<'a> {
                     Err(inner_err) => {
                         err.cancel();
                         inner_err.cancel();
-                        return;
+                        return self.dcx().span_delayed_bug(expr.span, "not a tail expression");
                     }
                 }
                 && let ast::AttrKind::Normal(next_attr_kind) = next_attr.kind
@@ -810,7 +813,7 @@ impl<'a> Parser<'a> {
                     Err(inner_err) => {
                         err.cancel();
                         inner_err.cancel();
-                        return;
+                        return self.dcx().span_delayed_bug(expr.span, "not a tail expression");
                     }
                 };
                 // We have for sure
@@ -843,7 +846,7 @@ impl<'a> Parser<'a> {
                 );
             }
         }
-        err.emit();
+        err.emit()
     }
 
     fn check_too_many_raw_str_terminators(&mut self, err: &mut Diagnostic) -> bool {
@@ -919,10 +922,10 @@ impl<'a> Parser<'a> {
                     // fn foo() -> Foo { Path {
                     //     field: value,
                     // } }
-                    err.delay_as_bug();
+                    let guar = err.delay_as_bug();
                     self.restore_snapshot(snapshot);
                     let mut tail = self.mk_block(
-                        thin_vec![self.mk_stmt_err(expr.span)],
+                        thin_vec![self.mk_stmt_err(expr.span, guar)],
                         s,
                         lo.to(self.prev_token.span),
                     );
@@ -988,7 +991,7 @@ impl<'a> Parser<'a> {
         decl_hi: Span,
     ) -> PResult<'a, P<Expr>> {
         err.span_label(lo.to(decl_hi), "while parsing the body of this closure");
-        match before.kind {
+        let guar = match before.kind {
             token::OpenDelim(Delimiter::Brace)
                 if !matches!(token.kind, token::OpenDelim(Delimiter::Brace)) =>
             {
@@ -1002,8 +1005,9 @@ impl<'a> Parser<'a> {
                     ],
                     Applicability::MaybeIncorrect,
                 );
-                err.emit();
+                let guar = err.emit();
                 self.eat_to_tokens(&[&token::CloseDelim(Delimiter::Brace)]);
+                guar
             }
             token::OpenDelim(Delimiter::Parenthesis)
                 if !matches!(token.kind, token::OpenDelim(Delimiter::Brace)) =>
@@ -1020,7 +1024,7 @@ impl<'a> Parser<'a> {
                     ],
                     Applicability::MaybeIncorrect,
                 );
-                err.emit();
+                err.emit()
             }
             _ if !matches!(token.kind, token::OpenDelim(Delimiter::Brace)) => {
                 // We don't have a heuristic to correctly identify where the block
@@ -1033,8 +1037,8 @@ impl<'a> Parser<'a> {
                 return Err(err);
             }
             _ => return Err(err),
-        }
-        Ok(self.mk_expr_err(lo.to(self.token.span)))
+        };
+        Ok(self.mk_expr_err(lo.to(self.token.span), guar))
     }
 
     /// Eats and discards tokens until one of `kets` is encountered. Respects token trees,
@@ -1212,7 +1216,7 @@ impl<'a> Parser<'a> {
         &mut self,
         mut e: DiagnosticBuilder<'a>,
         expr: &mut P<Expr>,
-    ) -> PResult<'a, ()> {
+    ) -> PResult<'a, ErrorGuaranteed> {
         if let ExprKind::Binary(binop, _, _) = &expr.kind
             && let ast::BinOpKind::Lt = binop.node
             && self.eat(&token::Comma)
@@ -1237,9 +1241,9 @@ impl<'a> Parser<'a> {
                                 // The subsequent expression is valid. Mark
                                 // `expr` as erroneous and emit `e` now, but
                                 // return `Ok` so parsing can continue.
-                                e.emit();
-                                *expr = self.mk_expr_err(expr.span.to(self.prev_token.span));
-                                return Ok(());
+                                let guar = e.emit();
+                                *expr = self.mk_expr_err(expr.span.to(self.prev_token.span), guar);
+                                return Ok(guar);
                             }
                             Err(err) => {
                                 err.cancel();
@@ -1391,7 +1395,8 @@ impl<'a> Parser<'a> {
             outer_op.node,
         );
 
-        let mk_err_expr = |this: &Self, span| Ok(Some(this.mk_expr(span, ExprKind::Err)));
+        let mk_err_expr =
+            |this: &Self, span, guar| Ok(Some(this.mk_expr(span, ExprKind::Err(guar))));
 
         match &inner_op.kind {
             ExprKind::Binary(op, l1, r1) if op.node.is_comparison() => {
@@ -1441,11 +1446,11 @@ impl<'a> Parser<'a> {
                         match self.parse_expr() {
                             Ok(_) => {
                                 // 99% certain that the suggestion is correct, continue parsing.
-                                self.dcx().emit_err(err);
+                                let guar = self.dcx().emit_err(err);
                                 // FIXME: actually check that the two expressions in the binop are
                                 // paths and resynthesize new fn call expression instead of using
                                 // `ExprKind::Err` placeholder.
-                                mk_err_expr(self, inner_op.span.to(self.prev_token.span))
+                                mk_err_expr(self, inner_op.span.to(self.prev_token.span), guar)
                             }
                             Err(expr_err) => {
                                 expr_err.cancel();
@@ -1469,11 +1474,11 @@ impl<'a> Parser<'a> {
                         match self.consume_fn_args() {
                             Err(()) => Err(self.dcx().create_err(err)),
                             Ok(()) => {
-                                self.dcx().emit_err(err);
+                                let guar = self.dcx().emit_err(err);
                                 // FIXME: actually check that the two expressions in the binop are
                                 // paths and resynthesize new fn call expression instead of using
                                 // `ExprKind::Err` placeholder.
-                                mk_err_expr(self, inner_op.span.to(self.prev_token.span))
+                                mk_err_expr(self, inner_op.span.to(self.prev_token.span), guar)
                             }
                         }
                     } else {
@@ -1489,8 +1494,8 @@ impl<'a> Parser<'a> {
                         // misformatted turbofish, for instance), suggest a correct form.
                         if self.attempt_chained_comparison_suggestion(&mut err, inner_op, outer_op)
                         {
-                            self.dcx().emit_err(err);
-                            mk_err_expr(self, inner_op.span.to(self.prev_token.span))
+                            let guar = self.dcx().emit_err(err);
+                            mk_err_expr(self, inner_op.span.to(self.prev_token.span), guar)
                         } else {
                             // These cases cause too many knock-down errors, bail out (#61329).
                             Err(self.dcx().create_err(err))
@@ -1499,9 +1504,9 @@ impl<'a> Parser<'a> {
                 }
                 let recover =
                     self.attempt_chained_comparison_suggestion(&mut err, inner_op, outer_op);
-                self.dcx().emit_err(err);
+                let guar = self.dcx().emit_err(err);
                 if recover {
-                    return mk_err_expr(self, inner_op.span.to(self.prev_token.span));
+                    return mk_err_expr(self, inner_op.span.to(self.prev_token.span), guar);
                 }
             }
             _ => {}
@@ -1925,8 +1930,8 @@ impl<'a> Parser<'a> {
         } else {
             self.recover_await_prefix(await_sp)?
         };
-        let sp = self.error_on_incorrect_await(lo, hi, &expr, is_question);
-        let expr = self.mk_expr(lo.to(sp), ExprKind::Err);
+        let (sp, guar) = self.error_on_incorrect_await(lo, hi, &expr, is_question);
+        let expr = self.mk_expr_err(lo.to(sp), guar);
         self.maybe_recover_from_bad_qpath(expr)
     }
 
@@ -1955,21 +1960,27 @@ impl<'a> Parser<'a> {
         Ok((expr.span, expr, is_question))
     }
 
-    fn error_on_incorrect_await(&self, lo: Span, hi: Span, expr: &Expr, is_question: bool) -> Span {
+    fn error_on_incorrect_await(
+        &self,
+        lo: Span,
+        hi: Span,
+        expr: &Expr,
+        is_question: bool,
+    ) -> (Span, ErrorGuaranteed) {
         let span = lo.to(hi);
         let applicability = match expr.kind {
             ExprKind::Try(_) => Applicability::MaybeIncorrect, // `await <expr>?`
             _ => Applicability::MachineApplicable,
         };
 
-        self.dcx().emit_err(IncorrectAwait {
+        let guar = self.dcx().emit_err(IncorrectAwait {
             span,
             sugg_span: (span, applicability),
             expr: self.span_to_snippet(expr.span).unwrap_or_else(|_| pprust::expr_to_string(expr)),
             question_mark: if is_question { "?" } else { "" },
         });
 
-        span
+        (span, guar)
     }
 
     /// If encountering `future.await()`, consumes and emits an error.
@@ -2013,8 +2024,8 @@ impl<'a> Parser<'a> {
                 );
             }
             err.span_suggestion(lo.shrink_to_lo(), format!("{prefix}you can still access the deprecated `try!()` macro using the \"raw identifier\" syntax"), "r#", Applicability::MachineApplicable);
-            err.emit();
-            Ok(self.mk_expr_err(lo.to(hi)))
+            let guar = err.emit();
+            Ok(self.mk_expr_err(lo.to(hi), guar))
         } else {
             Err(self.expected_expression_found()) // The user isn't trying to invoke the try! macro
         }
@@ -2059,10 +2070,10 @@ impl<'a> Parser<'a> {
         lo: Span,
         err: PErr<'a>,
     ) -> P<Expr> {
-        err.emit();
+        let guar = err.emit();
         // Recover from parse error, callers expect the closing delim to be consumed.
         self.consume_block(delim, ConsumeClosingDelim::Yes);
-        self.mk_expr(lo.to(self.prev_token.span), ExprKind::Err)
+        self.mk_expr(lo.to(self.prev_token.span), ExprKind::Err(guar))
     }
 
     /// Eats tokens until we can be relatively sure we reached the end of the
@@ -2549,9 +2560,10 @@ impl<'a> Parser<'a> {
             }
             _ => None,
         };
-        self.dcx().emit_err(UnexpectedConstParamDeclaration { span: param.span(), sugg });
+        let guar =
+            self.dcx().emit_err(UnexpectedConstParamDeclaration { span: param.span(), sugg });
 
-        let value = self.mk_expr_err(param.span());
+        let value = self.mk_expr_err(param.span(), guar);
         Some(GenericArg::Const(AnonConst { id: ast::DUMMY_NODE_ID, value }))
     }
 
@@ -2630,8 +2642,8 @@ impl<'a> Parser<'a> {
                         "=",
                         Applicability::MaybeIncorrect,
                     );
-                    let value = self.mk_expr_err(start.to(expr.span));
-                    err.emit();
+                    let guar = err.emit();
+                    let value = self.mk_expr_err(start.to(expr.span), guar);
                     return Ok(GenericArg::Const(AnonConst { id: ast::DUMMY_NODE_ID, value }));
                 } else if token::Colon == snapshot.token.kind
                     && expr.span.lo() == snapshot.token.span.hi()
@@ -2699,8 +2711,8 @@ impl<'a> Parser<'a> {
             vec![(span.shrink_to_lo(), "{ ".to_string()), (span.shrink_to_hi(), " }".to_string())],
             Applicability::MaybeIncorrect,
         );
-        let value = self.mk_expr_err(span);
-        err.emit();
+        let guar = err.emit();
+        let value = self.mk_expr_err(span, guar);
         GenericArg::Const(AnonConst { id: ast::DUMMY_NODE_ID, value })
     }
 

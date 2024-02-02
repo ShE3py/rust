@@ -6,7 +6,7 @@ use rustc_errors::{
     codes::*, DiagCtxt, DiagnosticBuilder, DiagnosticMessage, IntoDiagnostic, Level, MultiSpan,
 };
 use rustc_macros::Diagnostic;
-use rustc_span::{Span, Symbol};
+use rustc_span::{ErrorGuaranteed, Span, Symbol};
 use rustc_target::spec::{SplitDebuginfo, StackProtector, TargetTriple};
 
 use crate::parse::ParseSess;
@@ -344,7 +344,12 @@ pub(crate) struct BinaryFloatLiteralNotSupported {
     pub span: Span,
 }
 
-pub fn report_lit_error(sess: &ParseSess, err: LitError, lit: token::Lit, span: Span) {
+pub fn report_lit_error(
+    sess: &ParseSess,
+    err: LitError,
+    lit: token::Lit,
+    span: Span,
+) -> ErrorGuaranteed {
     // Checks if `s` looks like i32 or u1234 etc.
     fn looks_like_width_suffix(first_chars: &[char], s: &str) -> bool {
         s.len() > 1 && s.starts_with(first_chars) && s[1..].chars().all(|c| c.is_ascii_digit())
@@ -375,12 +380,15 @@ pub fn report_lit_error(sess: &ParseSess, err: LitError, lit: token::Lit, span: 
     let token::Lit { kind, symbol, suffix, .. } = lit;
     let dcx = &sess.dcx;
     match err {
-        // `LexerError` is an error, but it was already reported
-        // by lexer, so here we don't report it the second time.
-        LitError::LexerError => {}
+        LitError::LexerError => {
+            // Supposedly already reported, but we need an `ErrorGuaranteed`, hence the delayed bug.
+            dcx.span_delayed_bug(span, "lexer error")
+        }
         LitError::InvalidSuffix => {
             if let Some(suffix) = suffix {
-                dcx.emit_err(InvalidLiteralSuffix { span, kind: kind.descr(), suffix });
+                dcx.emit_err(InvalidLiteralSuffix { span, kind: kind.descr(), suffix })
+            } else {
+                dcx.span_bug(span, "invalid suffix, but no suffix?")
             }
         }
         LitError::InvalidIntSuffix => {
@@ -388,11 +396,11 @@ pub fn report_lit_error(sess: &ParseSess, err: LitError, lit: token::Lit, span: 
             let suf = suf.as_str();
             if looks_like_width_suffix(&['i', 'u'], suf) {
                 // If it looks like a width, try to be helpful.
-                dcx.emit_err(InvalidIntLiteralWidth { span, width: suf[1..].into() });
+                dcx.emit_err(InvalidIntLiteralWidth { span, width: suf[1..].into() })
             } else if let Some(fixed) = fix_base_capitalisation(symbol.as_str(), suf) {
-                dcx.emit_err(InvalidNumLiteralBasePrefix { span, fixed });
+                dcx.emit_err(InvalidNumLiteralBasePrefix { span, fixed })
             } else {
-                dcx.emit_err(InvalidNumLiteralSuffix { span, suffix: suf.to_string() });
+                dcx.emit_err(InvalidNumLiteralSuffix { span, suffix: suf.to_string() })
             }
         }
         LitError::InvalidFloatSuffix => {
@@ -400,19 +408,17 @@ pub fn report_lit_error(sess: &ParseSess, err: LitError, lit: token::Lit, span: 
             let suf = suf.as_str();
             if looks_like_width_suffix(&['f'], suf) {
                 // If it looks like a width, try to be helpful.
-                dcx.emit_err(InvalidFloatLiteralWidth { span, width: suf[1..].to_string() });
+                dcx.emit_err(InvalidFloatLiteralWidth { span, width: suf[1..].to_string() })
             } else {
-                dcx.emit_err(InvalidFloatLiteralSuffix { span, suffix: suf.to_string() });
+                dcx.emit_err(InvalidFloatLiteralSuffix { span, suffix: suf.to_string() })
             }
         }
-        LitError::NonDecimalFloat(base) => {
-            match base {
-                16 => dcx.emit_err(HexadecimalFloatLiteralNotSupported { span }),
-                8 => dcx.emit_err(OctalFloatLiteralNotSupported { span }),
-                2 => dcx.emit_err(BinaryFloatLiteralNotSupported { span }),
-                _ => unreachable!(),
-            };
-        }
+        LitError::NonDecimalFloat(base) => match base {
+            16 => dcx.emit_err(HexadecimalFloatLiteralNotSupported { span }),
+            8 => dcx.emit_err(OctalFloatLiteralNotSupported { span }),
+            2 => dcx.emit_err(BinaryFloatLiteralNotSupported { span }),
+            _ => unreachable!(),
+        },
         LitError::IntTooLarge(base) => {
             let max = u128::MAX;
             let limit = match base {
@@ -421,7 +427,7 @@ pub fn report_lit_error(sess: &ParseSess, err: LitError, lit: token::Lit, span: 
                 16 => format!("{max:#x}"),
                 _ => format!("{max}"),
             };
-            dcx.emit_err(IntLiteralTooLarge { span, limit });
+            dcx.emit_err(IntLiteralTooLarge { span, limit })
         }
     }
 }
