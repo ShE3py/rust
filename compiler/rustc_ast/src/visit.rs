@@ -954,7 +954,7 @@ pub fn walk_expr<'a, V: Visitor<'a>>(visitor: &mut V, expression: &'a Expr) {
         }
         ExprKind::Try(subexpression) => visitor.visit_expr(subexpression),
         ExprKind::TryBlock(body) => visitor.visit_block(body),
-        ExprKind::Lit(_) | ExprKind::IncludedBytes(..) | ExprKind::Err => {}
+        ExprKind::Lit(_) | ExprKind::IncludedBytes(..) | ExprKind::Err | ExprKind::Dummy => {}
     }
 
     visitor.visit_expr_post(expression)

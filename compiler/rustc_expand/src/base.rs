@@ -1276,6 +1276,13 @@ pub fn expr_to_spanned_string<'a>(
             _ => Some((cx.dcx().struct_span_err(expr.span, err_msg), false)),
         },
         ast::ExprKind::Err => None,
+        ast::ExprKind::Dummy => {
+            cx.dcx().span_delayed_bug(
+                expr.span,
+                "tried to get a string literal from `ExprKind::Dummy`",
+            );
+            None
+        }
         _ => Some((cx.dcx().struct_span_err(expr.span, err_msg), false)),
     })
 }

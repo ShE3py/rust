@@ -3748,6 +3748,10 @@ impl<'a> Parser<'a> {
         self.mk_expr(span, ExprKind::Err)
     }
 
+    pub(super) fn mk_expr_dummy(&self, span: Span) -> P<Expr> {
+        self.mk_expr(span, ExprKind::Dummy)
+    }
+
     /// Create expression span ensuring the span of the parent node
     /// is larger than the span of lhs and rhs, including the attributes.
     fn mk_expr_sp(&self, lhs: &P<Expr>, lhs_span: Span, rhs_span: Span) -> Span {
@@ -3937,7 +3941,8 @@ impl MutVisitor for CondChecker<'_> {
             | ExprKind::Become(_)
             | ExprKind::IncludedBytes(_)
             | ExprKind::FormatArgs(_)
-            | ExprKind::Err => {
+            | ExprKind::Err
+            | ExprKind::Dummy => {
                 // These would forbid any let expressions they contain already.
             }
         }
