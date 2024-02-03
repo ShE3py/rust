@@ -65,57 +65,49 @@ fn invalid_type_err(
 
 /// Returns `expr` as a *single* byte literal if applicable.
 ///
-/// Otherwise, returns `None`, and either push the `expr`'s span to `missing_literals` or
-/// emit an error into `result` if none was already emitted (`result.is_ok()`).
+/// Otherwise, returns `None`, and either pushes the `expr`'s span to `missing_literals` or
+/// update `emitted_err` accordingly.
 fn handle_array_element(
     cx: &mut base::ExtCtxt<'_>,
-    result: &mut Result<(), ErrorGuaranteed>,
+    emitted_err: &mut Option<ErrorGuaranteed>,
     missing_literals: &mut Vec<rustc_span::Span>,
     expr: &P<rustc_ast::Expr>,
 ) -> Option<u8> {
     let dcx = cx.dcx();
-    match expr.kind {
-        ast::ExprKind::Array(_) | ast::ExprKind::Repeat(_, _) => {
-            if result.is_ok() {
-                *result =
-                    Err(dcx.emit_err(errors::ConcatBytesArray { span: expr.span, bytestr: false }));
-            }
-            None
-        }
-        ast::ExprKind::Lit(token_lit) => match ast::LitKind::from_token_lit(token_lit) {
-            Ok(ast::LitKind::Int(
-                val,
-                ast::LitIntType::Unsuffixed | ast::LitIntType::Unsigned(ast::UintTy::U8),
-            )) if val.get() <= u8::MAX.into() => Some(val.get() as u8),
 
-            Ok(ast::LitKind::Byte(val)) => Some(val),
-            Ok(ast::LitKind::ByteStr(..)) => {
-                if result.is_ok() {
-                    *result =
-                        Err(dcx
-                            .emit_err(errors::ConcatBytesArray { span: expr.span, bytestr: true }));
+    match expr.kind {
+        ast::ExprKind::Lit(token_lit) => {
+            match ast::LitKind::from_token_lit(token_lit).unwrap_or(ast::LitKind::Err) {
+                ast::LitKind::Int(
+                    val,
+                    ast::LitIntType::Unsuffixed | ast::LitIntType::Unsigned(ast::UintTy::U8),
+                ) if let Ok(val) = u8::try_from(val.get()) => return Some(val),
+                ast::LitKind::Byte(val) => return Some(val),
+                ast::LitKind::ByteStr(..) => {
+                    emitted_err.get_or_insert_with(|| {
+                        dcx.emit_err(errors::ConcatBytesArray { span: expr.span, bytestr: true })
+                    });
                 }
-                None
-            }
-            _ => {
-                if result.is_ok() {
-                    *result = Err(invalid_type_err(cx, token_lit, expr.span, true));
+                _ => {
+                    emitted_err
+                        .get_or_insert_with(|| invalid_type_err(cx, token_lit, expr.span, true));
                 }
-                None
-            }
-        },
+            };
+        }
+        ast::ExprKind::Array(_) | ast::ExprKind::Repeat(_, _) => {
+            emitted_err.get_or_insert_with(|| {
+                dcx.emit_err(errors::ConcatBytesArray { span: expr.span, bytestr: false })
+            });
+        }
         ast::ExprKind::IncludedBytes(..) => {
-            if result.is_ok() {
-                *result =
-                    Err(dcx.emit_err(errors::ConcatBytesArray { span: expr.span, bytestr: false }));
-            }
-            None
+            emitted_err.get_or_insert_with(|| {
+                dcx.emit_err(errors::ConcatBytesArray { span: expr.span, bytestr: false })
+            });
         }
-        _ => {
-            missing_literals.push(expr.span);
-            None
-        }
+        _ => missing_literals.push(expr.span),
     }
+
+    None
 }
 
 pub fn expand_concat_bytes(
@@ -129,13 +121,13 @@ pub fn expand_concat_bytes(
     };
     let mut accumulator = Vec::new();
     let mut missing_literals = vec![];
-    let mut result = Ok(());
+    let mut emitted_err = None;
     for e in es {
         match &e.kind {
             ast::ExprKind::Array(exprs) => {
                 for expr in exprs {
                     if let Some(elem) =
-                        handle_array_element(cx, &mut result, &mut missing_literals, expr)
+                        handle_array_element(cx, &mut emitted_err, &mut missing_literals, expr)
                     {
                         accumulator.push(elem);
                     }
@@ -147,14 +139,16 @@ pub fn expand_concat_bytes(
                         ast::LitKind::from_token_lit(token_lit)
                 {
                     if let Some(elem) =
-                        handle_array_element(cx, &mut result, &mut missing_literals, expr)
+                        handle_array_element(cx, &mut emitted_err, &mut missing_literals, expr)
                     {
                         for _ in 0..count_val.get() {
                             accumulator.push(elem);
                         }
                     }
                 } else {
-                    cx.dcx().emit_err(errors::ConcatBytesBadRepeat { span: count.value.span });
+                    let guar =
+                        cx.dcx().emit_err(errors::ConcatBytesBadRepeat { span: count.value.span });
+                    emitted_err = Some(guar);
                 }
             }
             &ast::ExprKind::Lit(token_lit) => match ast::LitKind::from_token_lit(token_lit) {
@@ -165,16 +159,15 @@ pub fn expand_concat_bytes(
                     accumulator.extend_from_slice(bytes);
                 }
                 _ => {
-                    if result.is_ok() {
-                        result = Err(invalid_type_err(cx, token_lit, e.span, false));
-                    }
+                    emitted_err
+                        .get_or_insert_with(|| invalid_type_err(cx, token_lit, e.span, false));
                 }
             },
             ast::ExprKind::IncludedBytes(bytes) => {
                 accumulator.extend_from_slice(bytes);
             }
             ast::ExprKind::Err(guar) => {
-                result = Err(*guar);
+                emitted_err = Some(*guar);
             }
             ast::ExprKind::Dummy => cx.dcx().span_bug(e.span, "concatenating `ExprKind::Dummy`"),
             _ => {
@@ -185,7 +178,7 @@ pub fn expand_concat_bytes(
     if !missing_literals.is_empty() {
         let guar = cx.dcx().emit_err(errors::ConcatBytesMissingLiteral { spans: missing_literals });
         return base::MacEager::expr(DummyResult::raw_expr(sp, Err(guar)));
-    } else if let Err(guar) = result {
+    } else if let Some(guar) = emitted_err {
         return base::MacEager::expr(DummyResult::raw_expr(sp, Err(guar)));
     }
     let sp = cx.with_def_site_ctxt(sp);

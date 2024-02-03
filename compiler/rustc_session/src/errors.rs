@@ -381,8 +381,7 @@ pub fn report_lit_error(
     let dcx = &sess.dcx;
     match err {
         LitError::LexerError => {
-            // Supposedly already reported, but we need an `ErrorGuaranteed`, hence the delayed bug.
-            dcx.span_delayed_bug(span, "lexer error")
+            dcx.span_delayed_bug(span, "encountered a lexer error, but no error was emitted")
         }
         LitError::InvalidSuffix => {
             if let Some(suffix) = suffix {

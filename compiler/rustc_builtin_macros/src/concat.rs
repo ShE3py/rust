@@ -17,7 +17,7 @@ pub fn expand_concat(
     };
     let mut accumulator = String::new();
     let mut missing_literal = vec![];
-    let mut result = Ok(());
+    let mut emitted_err = None;
     for e in es {
         match e.kind {
             ast::ExprKind::Lit(token_lit) => match ast::LitKind::from_token_lit(token_lit) {
@@ -35,18 +35,19 @@ pub fn expand_concat(
                 }
                 Ok(ast::LitKind::CStr(..)) => {
                     let guar = cx.dcx().emit_err(errors::ConcatCStrLit { span: e.span });
-                    result = Err(guar);
+                    emitted_err = Some(guar);
                 }
                 Ok(ast::LitKind::Byte(..) | ast::LitKind::ByteStr(..)) => {
                     let guar = cx.dcx().emit_err(errors::ConcatBytestr { span: e.span });
-                    result = Err(guar);
+                    emitted_err = Some(guar);
                 }
                 Ok(ast::LitKind::Err) => {
-                    result = Err(cx.dcx().span_delayed_bug(e.span, "concatenating `LitKind::Err`"));
+                    let guar = cx.dcx().span_delayed_bug(e.span, "concatenating `LitKind::Err`");
+                    emitted_err = Some(guar);
                 }
                 Err(err) => {
                     let guar = report_lit_error(&cx.sess.parse_sess, err, token_lit, e.span);
-                    result = Err(guar);
+                    emitted_err = Some(guar);
                 }
             },
             // We also want to allow negative numeric literals.
@@ -58,7 +59,7 @@ pub fn expand_concat(
                     Ok(ast::LitKind::Float(f, _)) => accumulator.push_str(&format!("-{f}")),
                     Err(err) => {
                         let guar = report_lit_error(&cx.sess.parse_sess, err, token_lit, e.span);
-                        result = Err(guar);
+                        emitted_err = Some(guar);
                     }
                     _ => missing_literal.push(e.span),
                 }
@@ -67,7 +68,7 @@ pub fn expand_concat(
                 cx.dcx().emit_err(errors::ConcatBytestr { span: e.span });
             }
             ast::ExprKind::Err(guar) => {
-                result = Err(guar);
+                emitted_err = Some(guar);
             }
             ast::ExprKind::Dummy => cx.dcx().span_bug(e.span, "concatenating `ExprKind::Dummy`"),
             _ => {
@@ -79,7 +80,7 @@ pub fn expand_concat(
     if !missing_literal.is_empty() {
         let guar = cx.dcx().emit_err(errors::ConcatMissingLiteral { spans: missing_literal });
         return DummyResult::any(sp, guar);
-    } else if let Err(guar) = result {
+    } else if let Some(guar) = emitted_err {
         return DummyResult::any(sp, guar);
     }
     let sp = cx.with_def_site_ctxt(sp);

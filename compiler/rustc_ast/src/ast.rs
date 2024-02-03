@@ -24,7 +24,6 @@ pub use rustc_span::AttrId;
 pub use GenericArgs::*;
 pub use UnsafeSource::*;
 
-use crate::mut_visit::DummyAstNode;
 use crate::ptr::P;
 use crate::token::{self, CommentKind, Delimiter};
 use crate::tokenstream::{DelimSpan, LazyAttrTokenStream, TokenStream};
@@ -1297,10 +1296,6 @@ impl Expr {
         }
     }
 
-    pub fn take(&mut self) -> Self {
-        mem::replace(self, Expr::dummy())
-    }
-
     /// To a first-order approximation, is this a pattern?
     pub fn is_approximately_pattern(&self) -> bool {
         matches!(
@@ -1521,7 +1516,7 @@ pub enum ExprKind {
     /// Placeholder for an expression that wasn't syntactically well formed in some way.
     Err(ErrorGuaranteed),
 
-    /// Act as a null expression. Lowering it will always emit a bug.
+    /// Acts as a null expression. Lowering it will always emit a bug.
     Dummy,
 }
 

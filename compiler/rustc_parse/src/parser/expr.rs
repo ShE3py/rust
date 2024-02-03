@@ -3430,12 +3430,12 @@ impl<'a> Parser<'a> {
         (
             ThinVec<ExprField>,
             ast::StructRest,
-            Result<(), ErrorGuaranteed>, /* aync blocks are forbidden in Rust 2015 */
+            Option<ErrorGuaranteed>, /* async blocks are forbidden in Rust 2015 */
         ),
     > {
         let mut fields = ThinVec::new();
         let mut base = ast::StructRest::None;
-        let mut recovered_async = Ok(());
+        let mut recovered_async = None;
         let in_if_guard = self.restrictions.contains(Restrictions::IN_IF_GUARD);
 
         let async_block_err = |e: &mut Diagnostic, span: Span| {
@@ -3524,7 +3524,7 @@ impl<'a> Parser<'a> {
 
                     let guar = e.emit();
                     if pth == kw::Async {
-                        recovered_async = Err(guar);
+                        recovered_async = Some(guar);
                     }
 
                     // If the next token is a comma, then try to parse
@@ -3574,7 +3574,7 @@ impl<'a> Parser<'a> {
                     }
                     let guar = e.emit();
                     if pth == kw::Async {
-                        recovered_async = Err(guar);
+                        recovered_async = Some(guar);
                     } else if let Some(f) = field_ident(self, guar) {
                         fields.push(f);
                     }
@@ -3598,7 +3598,7 @@ impl<'a> Parser<'a> {
             self.parse_struct_fields(pth.clone(), recover, Delimiter::Brace)?;
         let span = lo.to(self.token.span);
         self.expect(&token::CloseDelim(Delimiter::Brace))?;
-        let expr = if let Err(guar) = recovered_async {
+        let expr = if let Some(guar) = recovered_async {
             ExprKind::Err(guar)
         } else {
             ExprKind::Struct(P(ast::StructExpr { qself, path: pth, fields, rest: base }))

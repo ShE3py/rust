@@ -887,7 +887,7 @@ impl SyntaxExtension {
         }
     }
 
-    /// A bang macro `foo!()`.
+    /// A dummy bang macro `foo!()`.
     pub fn dummy_bang(edition: Edition) -> SyntaxExtension {
         fn expander<'cx>(
             cx: &'cx mut ExtCtxt<'_>,
@@ -899,7 +899,7 @@ impl SyntaxExtension {
         SyntaxExtension::default(SyntaxExtensionKind::LegacyBang(Box::new(expander)), edition)
     }
 
-    /// A derive macro `#[derive(Foo)]`.
+    /// A dummy derive macro `#[derive(Foo)]`.
     pub fn dummy_derive(edition: Edition) -> SyntaxExtension {
         fn expander(
             _: &mut ExtCtxt<'_>,

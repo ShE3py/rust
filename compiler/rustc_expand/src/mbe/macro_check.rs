@@ -207,13 +207,29 @@ pub(super) fn check_meta_variables(
     if lhses.len() != rhses.len() {
         sess.dcx.span_bug(span, "length mismatch between LHSes and RHSes")
     }
-    let mut valid = Ok(());
+    let mut emitted_err = None;
     for (lhs, rhs) in iter::zip(lhses, rhses) {
         let mut binders = Binders::default();
-        check_binders(sess, node_id, lhs, &Stack::Empty, &mut binders, &Stack::Empty, &mut valid);
-        check_occurrences(sess, node_id, rhs, &Stack::Empty, &binders, &Stack::Empty, &mut valid);
+        check_binders(
+            sess,
+            node_id,
+            lhs,
+            &Stack::Empty,
+            &mut binders,
+            &Stack::Empty,
+            &mut emitted_err,
+        );
+        check_occurrences(
+            sess,
+            node_id,
+            rhs,
+            &Stack::Empty,
+            &binders,
+            &Stack::Empty,
+            &mut emitted_err,
+        );
     }
-    valid
+    emitted_err.map_or(Ok(()), Err)
 }
 
 /// Checks `lhs` as part of the LHS of a macro definition, extends `binders` with new binders, and
@@ -226,7 +242,7 @@ pub(super) fn check_meta_variables(
 /// - `macros` is the stack of possible outer macros
 /// - `binders` contains the binders of the LHS
 /// - `ops` is the stack of Kleene operators from the LHS
-/// - `valid` is set in case of errors
+/// - `emitted_err` is set in case of errors
 fn check_binders(
     sess: &ParseSess,
     node_id: NodeId,
@@ -234,7 +250,7 @@ fn check_binders(
     macros: &Stack<'_, MacroState<'_>>,
     binders: &mut Binders,
     ops: &Stack<'_, KleeneToken>,
-    valid: &mut Result<(), ErrorGuaranteed>,
+    emitted_err: &mut Option<ErrorGuaranteed>,
 ) {
     match *lhs {
         TokenTree::Token(..) => {}
@@ -258,7 +274,7 @@ fn check_binders(
                 binders.insert(name, BinderInfo { span, ops: ops.into() });
             } else {
                 // 3. The meta-variable is bound: This is an occurrence.
-                check_occurrences(sess, node_id, lhs, macros, binders, ops, valid);
+                check_occurrences(sess, node_id, lhs, macros, binders, ops, emitted_err);
             }
         }
         // Similarly, this can only happen when checking a toplevel macro.
@@ -284,7 +300,7 @@ fn check_binders(
                 let guar = sess
                     .dcx
                     .emit_err(errors::DuplicateMatcherBinding { span, prev: prev_info.span });
-                *valid = Err(guar);
+                *emitted_err = Some(guar);
             } else {
                 binders.insert(name, BinderInfo { span, ops: ops.into() });
             }
@@ -293,13 +309,13 @@ fn check_binders(
         TokenTree::MetaVarExpr(..) => {}
         TokenTree::Delimited(.., ref del) => {
             for tt in &del.tts {
-                check_binders(sess, node_id, tt, macros, binders, ops, valid);
+                check_binders(sess, node_id, tt, macros, binders, ops, emitted_err);
             }
         }
         TokenTree::Sequence(_, ref seq) => {
             let ops = ops.push(seq.kleene);
             for tt in &seq.tts {
-                check_binders(sess, node_id, tt, macros, binders, &ops, valid);
+                check_binders(sess, node_id, tt, macros, binders, &ops, emitted_err);
             }
         }
     }
@@ -329,7 +345,7 @@ fn get_binder_info<'a>(
 /// - `macros` is the stack of possible outer macros
 /// - `binders` contains the binders of the associated LHS
 /// - `ops` is the stack of Kleene operators from the RHS
-/// - `valid` is set in case of errors
+/// - `emitted_err` is set in case of errors
 fn check_occurrences(
     sess: &ParseSess,
     node_id: NodeId,
@@ -337,7 +353,7 @@ fn check_occurrences(
     macros: &Stack<'_, MacroState<'_>>,
     binders: &Binders,
     ops: &Stack<'_, KleeneToken>,
-    valid: &mut Result<(), ErrorGuaranteed>,
+    emitted_err: &mut Option<ErrorGuaranteed>,
 ) {
     match *rhs {
         TokenTree::Token(..) => {}
@@ -355,11 +371,11 @@ fn check_occurrences(
             check_ops_is_prefix(sess, node_id, macros, binders, ops, dl.entire(), name);
         }
         TokenTree::Delimited(.., ref del) => {
-            check_nested_occurrences(sess, node_id, &del.tts, macros, binders, ops, valid);
+            check_nested_occurrences(sess, node_id, &del.tts, macros, binders, ops, emitted_err);
         }
         TokenTree::Sequence(_, ref seq) => {
             let ops = ops.push(seq.kleene);
-            check_nested_occurrences(sess, node_id, &seq.tts, macros, binders, &ops, valid);
+            check_nested_occurrences(sess, node_id, &seq.tts, macros, binders, &ops, emitted_err);
         }
     }
 }
@@ -394,7 +410,7 @@ enum NestedMacroState {
 /// - `macros` is the stack of possible outer macros
 /// - `binders` contains the binders of the associated LHS
 /// - `ops` is the stack of Kleene operators from the RHS
-/// - `valid` is set in case of errors
+/// - `emitted_err` is set in case of errors
 fn check_nested_occurrences(
     sess: &ParseSess,
     node_id: NodeId,
@@ -402,7 +418,7 @@ fn check_nested_occurrences(
     macros: &Stack<'_, MacroState<'_>>,
     binders: &Binders,
     ops: &Stack<'_, KleeneToken>,
-    valid: &mut Result<(), ErrorGuaranteed>,
+    emitted_err: &mut Option<ErrorGuaranteed>,
 ) {
     let mut state = NestedMacroState::Empty;
     let nested_macros = macros.push(MacroState { binders, ops: ops.into() });
@@ -434,7 +450,7 @@ fn check_nested_occurrences(
             (NestedMacroState::MacroRulesNot, &TokenTree::MetaVar(..)) => {
                 state = NestedMacroState::MacroRulesNotName;
                 // We check that the meta-variable is correctly used.
-                check_occurrences(sess, node_id, tt, macros, binders, ops, valid);
+                check_occurrences(sess, node_id, tt, macros, binders, ops, emitted_err);
             }
             (NestedMacroState::MacroRulesNotName, TokenTree::Delimited(.., del))
             | (NestedMacroState::MacroName, TokenTree::Delimited(.., del))
@@ -442,8 +458,14 @@ fn check_nested_occurrences(
             {
                 let macro_rules = state == NestedMacroState::MacroRulesNotName;
                 state = NestedMacroState::Empty;
-                let rest =
-                    check_nested_macro(sess, node_id, macro_rules, &del.tts, &nested_macros, valid);
+                let rest = check_nested_macro(
+                    sess,
+                    node_id,
+                    macro_rules,
+                    &del.tts,
+                    &nested_macros,
+                    emitted_err,
+                );
                 // If we did not check the whole macro definition, then check the rest as if outside
                 // the macro definition.
                 check_nested_occurrences(
@@ -453,7 +475,7 @@ fn check_nested_occurrences(
                     macros,
                     binders,
                     ops,
-                    valid,
+                    emitted_err,
                 );
             }
             (
@@ -465,7 +487,7 @@ fn check_nested_occurrences(
             (NestedMacroState::Macro, &TokenTree::MetaVar(..)) => {
                 state = NestedMacroState::MacroName;
                 // We check that the meta-variable is correctly used.
-                check_occurrences(sess, node_id, tt, macros, binders, ops, valid);
+                check_occurrences(sess, node_id, tt, macros, binders, ops, emitted_err);
             }
             (NestedMacroState::MacroName, TokenTree::Delimited(.., del))
                 if del.delim == Delimiter::Parenthesis =>
@@ -479,7 +501,7 @@ fn check_nested_occurrences(
                     &nested_macros,
                     &mut nested_binders,
                     &Stack::Empty,
-                    valid,
+                    emitted_err,
                 );
             }
             (NestedMacroState::MacroNameParen, TokenTree::Delimited(.., del))
@@ -493,12 +515,12 @@ fn check_nested_occurrences(
                     &nested_macros,
                     &nested_binders,
                     &Stack::Empty,
-                    valid,
+                    emitted_err,
                 );
             }
             (_, tt) => {
                 state = NestedMacroState::Empty;
-                check_occurrences(sess, node_id, tt, macros, binders, ops, valid);
+                check_occurrences(sess, node_id, tt, macros, binders, ops, emitted_err);
             }
         }
     }
@@ -517,14 +539,14 @@ fn check_nested_occurrences(
 /// - `macro_rules` specifies whether the macro is `macro_rules`
 /// - `tts` is checked as a list of (LHS) => {RHS}
 /// - `macros` is the stack of outer macros
-/// - `valid` is set in case of errors
+/// - `emitted_err` is set in case of errors
 fn check_nested_macro(
     sess: &ParseSess,
     node_id: NodeId,
     macro_rules: bool,
     tts: &[TokenTree],
     macros: &Stack<'_, MacroState<'_>>,
-    valid: &mut Result<(), ErrorGuaranteed>,
+    emitted_err: &mut Option<ErrorGuaranteed>,
 ) -> usize {
     let n = tts.len();
     let mut i = 0;
@@ -541,8 +563,8 @@ fn check_nested_macro(
         let lhs = &tts[i];
         let rhs = &tts[i + 2];
         let mut binders = Binders::default();
-        check_binders(sess, node_id, lhs, macros, &mut binders, &Stack::Empty, valid);
-        check_occurrences(sess, node_id, rhs, macros, &binders, &Stack::Empty, valid);
+        check_binders(sess, node_id, lhs, macros, &mut binders, &Stack::Empty, emitted_err);
+        check_occurrences(sess, node_id, rhs, macros, &binders, &Stack::Empty, emitted_err);
         // Since the last semicolon is optional for `macro_rules` macros and decl_macro are not terminated,
         // we increment our checked position by how many token trees we already checked (the 3
         // above) before checking for the separator.

@@ -83,9 +83,11 @@ fn default_enum_substructure(
     trait_span: Span,
     enum_def: &EnumDef,
 ) -> BlockOrExpr {
-    let expr = match extract_default_variant(cx, enum_def, trait_span).and_then(|default_variant| {
-        validate_default_attribute(cx, default_variant).map(|()| default_variant)
-    }) {
+    let expr = match try {
+        let default_variant = extract_default_variant(cx, enum_def, trait_span)?;
+        validate_default_attribute(cx, default_variant)?;
+        default_variant
+    } {
         Ok(default_variant) => {
             // We now know there is exactly one unit variant with exactly one `#[default]` attribute.
             cx.expr_path(cx.path(

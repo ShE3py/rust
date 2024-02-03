@@ -102,7 +102,6 @@ struct MacroRulesMacroExpander {
     transparency: Transparency,
     lhses: Vec<Vec<MatcherLoc>>,
     rhses: Vec<mbe::TokenTree>,
-    validity: Result<(), ErrorGuaranteed>,
 }
 
 impl TTMacroExpander for MacroRulesMacroExpander {
@@ -112,9 +111,6 @@ impl TTMacroExpander for MacroRulesMacroExpander {
         sp: Span,
         input: TokenStream,
     ) -> Box<dyn MacResult + 'cx> {
-        if let Err(guar) = self.validity {
-            return DummyResult::any(sp, guar);
-        }
         expand_macro(
             cx,
             sp,
@@ -474,7 +470,9 @@ pub fn compile_declarative_macro(
             }
         };
 
-    let mut result = Ok(());
+    let mut emitted_err = None;
+    let mut check_emission =
+        |ret: Result<(), ErrorGuaranteed>| emitted_err = emitted_err.or(ret.err());
 
     // Extract the arguments:
     let lhses = match &argument_map[&MacroRulesNormalizedIdent::new(lhs_nm)] {
@@ -494,9 +492,7 @@ pub fn compile_declarative_macro(
                     .unwrap();
                     // We don't handle errors here, the driver will abort
                     // after parsing/expansion. we can report every error in every macro this way.
-                    if let Err(g) = check_lhs_nt_follows(sess, def, &tt) {
-                        result = Err(g);
-                    }
+                    check_emission(check_lhs_nt_follows(sess, def, &tt));
                     return tt;
                 }
                 sess.dcx().span_bug(def.span, "wrong-structured lhs")
@@ -528,23 +524,21 @@ pub fn compile_declarative_macro(
     };
 
     for rhs in &rhses {
-        if let Err(g) = check_rhs(sess, rhs) {
-            result = Err(g);
-        }
+        check_emission(check_rhs(sess, rhs));
     }
 
     // don't abort iteration early, so that errors for multiple lhses can be reported
     for lhs in &lhses {
-        if let Err(g) = check_lhs_no_empty_seq(sess, slice::from_ref(lhs)) {
-            result = Err(g);
-        }
+        check_emission(check_lhs_no_empty_seq(sess, slice::from_ref(lhs)));
     }
 
-    if let Err(g) =
-        macro_check::check_meta_variables(&sess.parse_sess, def.id, def.span, &lhses, &rhses)
-    {
-        result = Err(g);
-    }
+    check_emission(macro_check::check_meta_variables(
+        &sess.parse_sess,
+        def.id,
+        def.span,
+        &lhses,
+        &rhses,
+    ));
 
     let (transparency, transparency_error) = attr::find_transparency(&def.attrs, macro_rules);
     match transparency_error {
@@ -557,11 +551,16 @@ pub fn compile_declarative_macro(
         None => {}
     }
 
+    if let Some(guar) = emitted_err {
+        // Further down is not for dummy expanders.
+        return dummy_syn_ext(guar);
+    }
+
     // Compute the spans of the macro rules for unused rule linting.
     // To avoid warning noise, only consider the rules of this
     // macro for the lint, if all rules are valid.
     // Also, we are only interested in non-foreign macros.
-    let rule_spans = if result.is_ok() && def.id != DUMMY_NODE_ID {
+    let rule_spans = if def.id != DUMMY_NODE_ID {
         lhses
             .iter()
             .zip(rhses.iter())
@@ -579,22 +578,18 @@ pub fn compile_declarative_macro(
 
     // Convert the lhses into `MatcherLoc` form, which is better for doing the
     // actual matching. Unless the matcher is invalid.
-    let lhses = if result.is_ok() {
-        lhses
-            .iter()
-            .map(|lhs| {
-                // Ignore the delimiters around the matcher.
-                match lhs {
-                    mbe::TokenTree::Delimited(.., delimited) => {
-                        mbe::macro_parser::compute_locs(&delimited.tts)
-                    }
-                    _ => sess.dcx().span_bug(def.span, "malformed macro lhs"),
+    let lhses = lhses
+        .iter()
+        .map(|lhs| {
+            // Ignore the delimiters around the matcher.
+            match lhs {
+                mbe::TokenTree::Delimited(.., delimited) => {
+                    mbe::macro_parser::compute_locs(&delimited.tts)
                 }
-            })
-            .collect()
-    } else {
-        vec![]
-    };
+                _ => sess.dcx().span_bug(def.span, "malformed macro lhs"),
+            }
+        })
+        .collect();
 
     let expander = Box::new(MacroRulesMacroExpander {
         name: def.ident,
@@ -603,7 +598,6 @@ pub fn compile_declarative_macro(
         transparency,
         lhses,
         rhses,
-        validity: result,
     });
     (mk_syn_ext(expander), rule_spans)
 }

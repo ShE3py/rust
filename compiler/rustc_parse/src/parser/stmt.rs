@@ -666,13 +666,18 @@ impl<'a> Parser<'a> {
                 let expect_result =
                     self.expect_one_of(&[], &[token::Semi, token::CloseDelim(Delimiter::Brace)]);
 
+                // Try to both emit a better diagnostic, and avoid further errors by replacing
+                // the `expr` with `ExprKind::Err`.
                 let replace_with_err = 'break_recover: {
                     match expect_result {
-                        // Recover from parser, skip type error to avoid extra errors.
-                        Ok(true) => Some(
-                            self.dcx()
-                                .span_delayed_bug(self.prev_token.span, "expected `;` or `}`"),
-                        ),
+                        Ok(false) => None,
+                        Ok(true) => {
+                            // Recovered from parser, skip type error to avoid extra errors.
+                            let guar = self
+                                .dcx()
+                                .span_delayed_bug(self.prev_token.span, "expected `;` or `}`");
+                            Some(guar)
+                        }
                         Err(e) => {
                             if self.recover_colon_as_semi() {
                                 // recover_colon_as_semi has already emitted a nicer error.
@@ -726,22 +731,19 @@ impl<'a> Parser<'a> {
                                 _ => {}
                             }
 
-                            let guar = match self
-                                .check_mistyped_turbofish_with_multiple_type_params(e, expr)
-                            {
-                                Ok(guar) => guar,
-                                Err(e) => {
-                                    if recover.no() {
-                                        return Err(e);
-                                    }
+                            let guar =
+                                self.check_mistyped_turbofish_with_multiple_type_params(e, expr);
+
+                            Some(if recover.no() {
+                                guar?
+                            } else {
+                                guar.unwrap_or_else(|e| {
                                     let guar = e.emit();
                                     self.recover_stmt();
                                     guar
-                                }
-                            };
-                            Some(guar)
+                                })
+                            })
                         }
-                        Ok(false) => None,
                     }
                 };
 
