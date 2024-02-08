@@ -62,7 +62,7 @@ fn invalid_type_err(
 /// Returns `expr` as a *single* byte literal if applicable.
 ///
 /// Otherwise, returns `None`, and either pushes the `expr`'s span to `missing_literals` or
-/// update `emitted_err` accordingly.
+/// updates `emitted_err` accordingly.
 fn handle_array_element(
     cx: &mut ExtCtxt<'_>,
     emitted_err: &mut Option<ErrorGuaranteed>,

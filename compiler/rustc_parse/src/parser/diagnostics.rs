@@ -787,7 +787,7 @@ impl<'a> Parser<'a> {
                 Applicability::MachineApplicable,
             );
 
-            // Special handling for `#[cfg(..)]` chains
+            // Special handling for `#[cfg(...)]` chains
             let mut snapshot = self.create_snapshot_for_diagnostic();
             if let [attr] = &expr.attrs[..]
                 && let ast::AttrKind::Normal(attr_kind) = &attr.kind
