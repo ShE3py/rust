@@ -1,5 +1,3 @@
-#![deny(rustc::untranslatable_diagnostic)]
-
 use crate::base::ast::NestedMetaItem;
 use crate::errors;
 use crate::expand::{self, AstFragment, Invocation};
@@ -573,10 +571,13 @@ impl DummyResult {
     }
 
     /// A plain dummy type.
-    pub fn raw_ty(sp: Span, is_error: bool) -> P<ast::Ty> {
+    pub fn raw_ty(sp: Span) -> P<ast::Ty> {
+        // FIXME(nnethercote): you might expect `ast::TyKind::Dummy` to be used here, but some
+        // values produced here end up being lowered to HIR, which `ast::TyKind::Dummy` does not
+        // support, so we use an empty tuple instead.
         P(ast::Ty {
             id: ast::DUMMY_NODE_ID,
-            kind: if is_error { ast::TyKind::Err } else { ast::TyKind::Tup(ThinVec::new()) },
+            kind: ast::TyKind::Tup(ThinVec::new()),
             span: sp,
             tokens: None,
         })
@@ -617,7 +618,7 @@ impl MacResult for DummyResult {
     }
 
     fn make_ty(self: Box<DummyResult>) -> Option<P<ast::Ty>> {
-        Some(DummyResult::raw_ty(self.span, self.kind.is_err()))
+        Some(DummyResult::raw_ty(self.span))
     }
 
     fn make_arms(self: Box<DummyResult>) -> Option<SmallVec<[ast::Arm; 1]>> {
@@ -1277,9 +1278,7 @@ pub fn expr_to_spanned_string<'a>(
                 );
                 Ok((err, true))
             }
-            Ok(ast::LitKind::Err) => Err(cx
-                .dcx()
-                .span_delayed_bug(expr.span, "tried to get a string literal from `LitKind::Err`")),
+            Ok(ast::LitKind::Err(guar)) => Err(guar),
             Err(err) => Err(report_lit_error(&cx.sess.parse_sess, err, token_lit, expr.span)),
             _ => Ok((cx.dcx().struct_span_err(expr.span, err_msg), false)),
         },

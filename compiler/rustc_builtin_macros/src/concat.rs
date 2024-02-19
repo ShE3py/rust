@@ -41,8 +41,7 @@ pub fn expand_concat(
                     let guar = cx.dcx().emit_err(errors::ConcatBytestr { span: e.span });
                     emitted_err = Some(guar);
                 }
-                Ok(LitKind::Err) => {
-                    let guar = cx.dcx().span_delayed_bug(e.span, "concatenating `LitKind::Err`");
+                Ok(LitKind::Err(guar)) => {
                     emitted_err = Some(guar);
                 }
                 Err(err) => {

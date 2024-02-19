@@ -4,15 +4,12 @@
 
 #[cfg(feature = "cpu_profiler")]
 mod google_cpu_profiler;
-mod hprof;
 mod memory_usage;
 mod stop_watch;
-mod tree;
 
 use std::cell::RefCell;
 
 pub use crate::{
-    hprof::{heartbeat, heartbeat_span, init, init_from, span},
     memory_usage::{Bytes, MemoryUsage},
     stop_watch::{StopWatch, StopWatchSpan},
 };
@@ -24,7 +21,7 @@ pub use countme;
 /// almost zero.
 pub use countme::Count;
 
-thread_local!(static IN_SCOPE: RefCell<bool> = RefCell::new(false));
+thread_local!(static IN_SCOPE: RefCell<bool> = const { RefCell::new(false) });
 
 /// Allows to check if the current code is within some dynamic scope, can be
 /// useful during debugging to figure out why a function is called.
@@ -91,6 +88,7 @@ pub fn cpu_span() -> CpuSpan {
     }
 
     #[cfg(not(feature = "cpu_profiler"))]
+    #[allow(clippy::print_stderr)]
     {
         eprintln!(
             r#"cpu profiling is disabled, uncomment `default = [ "cpu_profiler" ]` in Cargo.toml to enable."#

@@ -61,7 +61,7 @@ pub trait ExpandDatabase: SourceDatabase {
     #[salsa::input]
     fn proc_macros(&self) -> Arc<ProcMacros>;
 
-    #[salsa::invoke(AstIdMap::ast_id_map)]
+    #[salsa::invoke(AstIdMap::new)]
     fn ast_id_map(&self, file_id: HirFileId) -> Arc<AstIdMap>;
 
     /// Main public API -- parses a hir file, not caring whether it's a real
@@ -80,6 +80,9 @@ pub trait ExpandDatabase: SourceDatabase {
     #[salsa::invoke(SpanMap::new)]
     fn span_map(&self, file_id: HirFileId) -> SpanMap;
 
+    #[salsa::transparent]
+    #[salsa::invoke(crate::span_map::expansion_span_map)]
+    fn expansion_span_map(&self, file_id: MacroFileId) -> Arc<ExpansionSpanMap>;
     #[salsa::invoke(crate::span_map::real_span_map)]
     fn real_span_map(&self, file_id: FileId) -> Arc<RealSpanMap>;
 
@@ -105,7 +108,7 @@ pub trait ExpandDatabase: SourceDatabase {
     fn macro_arg(
         &self,
         id: MacroCallId,
-    ) -> ValueResult<Option<(Arc<tt::Subtree>, SyntaxFixupUndoInfo)>, Arc<Box<[SyntaxError]>>>;
+    ) -> ValueResult<(Arc<tt::Subtree>, SyntaxFixupUndoInfo), Arc<Box<[SyntaxError]>>>;
     /// Fetches the expander for this macro.
     #[salsa::transparent]
     #[salsa::invoke(TokenExpander::macro_expander)]
@@ -280,7 +283,7 @@ fn parse_macro_expansion(
     db: &dyn ExpandDatabase,
     macro_file: MacroFileId,
 ) -> ExpandResult<(Parse<SyntaxNode>, Arc<ExpansionSpanMap>)> {
-    let _p = profile::span("parse_macro_expansion");
+    let _p = tracing::span!(tracing::Level::INFO, "parse_macro_expansion").entered();
     let loc = db.lookup_intern_macro_call(macro_file.macro_call_id);
     let expand_to = loc.expand_to();
     let mbe::ValueResult { value: tt, err } = macro_expand(db, macro_file.macro_call_id, loc);
@@ -323,58 +326,77 @@ fn macro_arg(
     db: &dyn ExpandDatabase,
     id: MacroCallId,
     // FIXME: consider the following by putting fixup info into eager call info args
-    // ) -> ValueResult<Option<Arc<(tt::Subtree, SyntaxFixupUndoInfo)>>, Arc<Box<[SyntaxError]>>> {
-) -> ValueResult<Option<(Arc<tt::Subtree>, SyntaxFixupUndoInfo)>, Arc<Box<[SyntaxError]>>> {
-    let mismatched_delimiters = |arg: &SyntaxNode| {
-        let first = arg.first_child_or_token().map_or(T![.], |it| it.kind());
-        let last = arg.last_child_or_token().map_or(T![.], |it| it.kind());
-        let well_formed_tt =
-            matches!((first, last), (T!['('], T![')']) | (T!['['], T![']']) | (T!['{'], T!['}']));
-        if !well_formed_tt {
-            // Don't expand malformed (unbalanced) macro invocations. This is
-            // less than ideal, but trying to expand unbalanced  macro calls
-            // sometimes produces pathological, deeply nested code which breaks
-            // all kinds of things.
-            //
-            // Some day, we'll have explicit recursion counters for all
-            // recursive things, at which point this code might be removed.
-            cov_mark::hit!(issue9358_bad_macro_stack_overflow);
-            Some(Arc::new(Box::new([SyntaxError::new(
-                "unbalanced token tree".to_owned(),
-                arg.text_range(),
-            )]) as Box<[_]>))
-        } else {
-            None
-        }
-    };
+    // ) -> ValueResult<Arc<(tt::Subtree, SyntaxFixupUndoInfo)>, Arc<Box<[SyntaxError]>>> {
+) -> ValueResult<(Arc<tt::Subtree>, SyntaxFixupUndoInfo), Arc<Box<[SyntaxError]>>> {
     let loc = db.lookup_intern_macro_call(id);
     if let Some(EagerCallInfo { arg, .. }) = matches!(loc.def.kind, MacroDefKind::BuiltInEager(..))
         .then(|| loc.eager.as_deref())
         .flatten()
     {
-        ValueResult::ok(Some((arg.clone(), SyntaxFixupUndoInfo::NONE)))
+        ValueResult::ok((arg.clone(), SyntaxFixupUndoInfo::NONE))
     } else {
         let (parse, map) = parse_with_map(db, loc.kind.file_id());
         let root = parse.syntax_node();
 
         let syntax = match loc.kind {
             MacroCallKind::FnLike { ast_id, .. } => {
+                let dummy_tt = |kind| {
+                    (
+                        Arc::new(tt::Subtree {
+                            delimiter: tt::Delimiter {
+                                open: loc.call_site,
+                                close: loc.call_site,
+                                kind,
+                            },
+                            token_trees: Box::default(),
+                        }),
+                        SyntaxFixupUndoInfo::default(),
+                    )
+                };
+
                 let node = &ast_id.to_ptr(db).to_node(&root);
                 let offset = node.syntax().text_range().start();
-                match node.token_tree() {
-                    Some(tt) => {
-                        let tt = tt.syntax();
-                        if let Some(e) = mismatched_delimiters(tt) {
-                            return ValueResult::only_err(e);
-                        }
-                        tt.clone()
-                    }
-                    None => {
-                        return ValueResult::only_err(Arc::new(Box::new([
-                            SyntaxError::new_at_offset("missing token tree".to_owned(), offset),
-                        ])));
-                    }
+                let Some(tt) = node.token_tree() else {
+                    return ValueResult::new(
+                        dummy_tt(tt::DelimiterKind::Invisible),
+                        Arc::new(Box::new([SyntaxError::new_at_offset(
+                            "missing token tree".to_owned(),
+                            offset,
+                        )])),
+                    );
+                };
+                let first = tt.left_delimiter_token().map(|it| it.kind()).unwrap_or(T!['(']);
+                let last = tt.right_delimiter_token().map(|it| it.kind()).unwrap_or(T![.]);
+
+                let mismatched_delimiters = !matches!(
+                    (first, last),
+                    (T!['('], T![')']) | (T!['['], T![']']) | (T!['{'], T!['}'])
+                );
+                if mismatched_delimiters {
+                    // Don't expand malformed (unbalanced) macro invocations. This is
+                    // less than ideal, but trying to expand unbalanced  macro calls
+                    // sometimes produces pathological, deeply nested code which breaks
+                    // all kinds of things.
+                    //
+                    // So instead, we'll return an empty subtree here
+                    cov_mark::hit!(issue9358_bad_macro_stack_overflow);
+
+                    let kind = match first {
+                        _ if loc.def.is_proc_macro() => tt::DelimiterKind::Invisible,
+                        T!['('] => tt::DelimiterKind::Parenthesis,
+                        T!['['] => tt::DelimiterKind::Bracket,
+                        T!['{'] => tt::DelimiterKind::Brace,
+                        _ => tt::DelimiterKind::Invisible,
+                    };
+                    return ValueResult::new(
+                        dummy_tt(kind),
+                        Arc::new(Box::new([SyntaxError::new_at_offset(
+                            "mismatched delimiters".to_owned(),
+                            offset,
+                        )])),
+                    );
                 }
+                tt.syntax().clone()
             }
             MacroCallKind::Derive { ast_id, .. } => {
                 ast_id.to_ptr(db).to_node(&root).syntax().clone()
@@ -424,15 +446,15 @@ fn macro_arg(
 
         if matches!(loc.def.kind, MacroDefKind::BuiltInEager(..)) {
             match parse.errors() {
-                [] => ValueResult::ok(Some((Arc::new(tt), undo_info))),
+                [] => ValueResult::ok((Arc::new(tt), undo_info)),
                 errors => ValueResult::new(
-                    Some((Arc::new(tt), undo_info)),
+                    (Arc::new(tt), undo_info),
                     // Box::<[_]>::from(res.errors()), not stable yet
                     Arc::new(errors.to_vec().into_boxed_slice()),
                 ),
             }
         } else {
-            ValueResult::ok(Some((Arc::new(tt), undo_info)))
+            ValueResult::ok((Arc::new(tt), undo_info))
         }
     }
 }
@@ -501,7 +523,7 @@ fn macro_expand(
     macro_call_id: MacroCallId,
     loc: MacroCallLoc,
 ) -> ExpandResult<CowArc<tt::Subtree>> {
-    let _p = profile::span("macro_expand");
+    let _p = tracing::span!(tracing::Level::INFO, "macro_expand").entered();
 
     let ExpandResult { value: tt, mut err } = match loc.def.kind {
         MacroDefKind::ProcMacro(..) => return db.expand_proc_macro(macro_call_id).map(CowArc::Arc),
@@ -516,21 +538,20 @@ fn macro_expand(
             expander.expand(db, macro_call_id, &node, map.as_ref())
         }
         _ => {
-            let ValueResult { value, err } = db.macro_arg(macro_call_id);
-            let Some((macro_arg, undo_info)) = value else {
-                return ExpandResult {
-                    value: CowArc::Owned(tt::Subtree {
-                        delimiter: tt::Delimiter::invisible_spanned(loc.call_site),
-                        token_trees: Vec::new(),
-                    }),
-                    // FIXME: We should make sure to enforce an invariant that invalid macro
-                    // calls do not reach this call path!
-                    err: Some(ExpandError::other("invalid token tree")),
-                };
+            let ValueResult { value: (macro_arg, undo_info), err } = db.macro_arg(macro_call_id);
+            let format_parse_err = |err: Arc<Box<[SyntaxError]>>| {
+                let mut buf = String::new();
+                for err in &**err {
+                    use std::fmt::Write;
+                    _ = write!(buf, "{}, ", err);
+                }
+                buf.pop();
+                buf.pop();
+                ExpandError::other(buf)
             };
 
             let arg = &*macro_arg;
-            match loc.def.kind {
+            let res = match loc.def.kind {
                 MacroDefKind::Declarative(id) => {
                     db.decl_macro_expander(loc.def.krate, id).expand(db, arg.clone(), macro_call_id)
                 }
@@ -546,16 +567,7 @@ fn macro_expand(
                 MacroDefKind::BuiltInEager(..) if loc.eager.is_none() => {
                     return ExpandResult {
                         value: CowArc::Arc(macro_arg.clone()),
-                        err: err.map(|err| {
-                            let mut buf = String::new();
-                            for err in &**err {
-                                use std::fmt::Write;
-                                _ = write!(buf, "{}, ", err);
-                            }
-                            buf.pop();
-                            buf.pop();
-                            ExpandError::other(buf)
-                        }),
+                        err: err.map(format_parse_err),
                     };
                 }
                 MacroDefKind::BuiltInEager(it, _) => {
@@ -567,6 +579,11 @@ fn macro_expand(
                     res
                 }
                 _ => unreachable!(),
+            };
+            ExpandResult {
+                value: res.value,
+                // if the arg had parse errors, show them instead of the expansion errors
+                err: err.map(format_parse_err).or(res.err),
             }
         }
     };
@@ -583,7 +600,7 @@ fn macro_expand(
             return value.map(|()| {
                 CowArc::Owned(tt::Subtree {
                     delimiter: tt::Delimiter::invisible_spanned(loc.call_site),
-                    token_trees: vec![],
+                    token_trees: Box::new([]),
                 })
             });
         }
@@ -594,17 +611,7 @@ fn macro_expand(
 
 fn expand_proc_macro(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<Arc<tt::Subtree>> {
     let loc = db.lookup_intern_macro_call(id);
-    let Some((macro_arg, undo_info)) = db.macro_arg(id).value else {
-        return ExpandResult {
-            value: Arc::new(tt::Subtree {
-                delimiter: tt::Delimiter::invisible_spanned(loc.call_site),
-                token_trees: Vec::new(),
-            }),
-            // FIXME: We should make sure to enforce an invariant that invalid macro
-            // calls do not reach this call path!
-            err: Some(ExpandError::other("invalid token tree")),
-        };
-    };
+    let (macro_arg, undo_info) = db.macro_arg(id).value;
 
     let expander = match loc.def.kind {
         MacroDefKind::ProcMacro(expander, ..) => expander,
@@ -632,7 +639,7 @@ fn expand_proc_macro(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<A
         return value.map(|()| {
             Arc::new(tt::Subtree {
                 delimiter: tt::Delimiter::invisible_spanned(loc.call_site),
-                token_trees: vec![],
+                token_trees: Box::new([]),
             })
         });
     }

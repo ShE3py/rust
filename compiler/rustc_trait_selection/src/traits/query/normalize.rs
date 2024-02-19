@@ -6,7 +6,8 @@ use crate::infer::at::At;
 use crate::infer::canonical::OriginalQueryValues;
 use crate::infer::{InferCtxt, InferOk};
 use crate::traits::error_reporting::TypeErrCtxtExt;
-use crate::traits::project::{needs_normalization, BoundVarReplacer, PlaceholderReplacer};
+use crate::traits::normalize::needs_normalization;
+use crate::traits::{BoundVarReplacer, PlaceholderReplacer};
 use crate::traits::{ObligationCause, PredicateObligation, Reveal};
 use rustc_data_structures::sso::SsoHashMap;
 use rustc_data_structures::stack::ensure_sufficient_stack;
@@ -22,20 +23,8 @@ use super::NoSolution;
 
 pub use rustc_middle::traits::query::NormalizationResult;
 
-pub trait QueryNormalizeExt<'tcx> {
-    /// Normalize a value using the `QueryNormalizer`.
-    ///
-    /// This normalization should *only* be used when the projection does not
-    /// have possible ambiguity or may not be well-formed.
-    ///
-    /// After codegen, when lifetimes do not matter, it is preferable to instead
-    /// use [`TyCtxt::normalize_erasing_regions`], which wraps this procedure.
-    fn query_normalize<T>(self, value: T) -> Result<Normalized<'tcx, T>, NoSolution>
-    where
-        T: TypeFoldable<TyCtxt<'tcx>>;
-}
-
-impl<'cx, 'tcx> QueryNormalizeExt<'tcx> for At<'cx, 'tcx> {
+#[extension(pub trait QueryNormalizeExt<'tcx>)]
+impl<'cx, 'tcx> At<'cx, 'tcx> {
     /// Normalize `value` in the context of the inference context,
     /// yielding a resulting type, or an error if `value` cannot be
     /// normalized. If you don't care about regions, you should prefer
@@ -49,6 +38,12 @@ impl<'cx, 'tcx> QueryNormalizeExt<'tcx> for At<'cx, 'tcx> {
     /// normalizing, but for now should be used only when we actually
     /// know that normalization will succeed, since error reporting
     /// and other details are still "under development".
+    ///
+    /// This normalization should *only* be used when the projection does not
+    /// have possible ambiguity or may not be well-formed.
+    ///
+    /// After codegen, when lifetimes do not matter, it is preferable to instead
+    /// use [`TyCtxt::normalize_erasing_regions`], which wraps this procedure.
     fn query_normalize<T>(self, value: T) -> Result<Normalized<'tcx, T>, NoSolution>
     where
         T: TypeFoldable<TyCtxt<'tcx>>,
@@ -341,7 +336,7 @@ impl<'cx, 'tcx> FallibleTypeFolder<TyCtxt<'tcx>> for QueryNormalizer<'cx, 'tcx> 
 
         let constant = constant.try_super_fold_with(self)?;
         debug!(?constant, ?self.param_env);
-        Ok(crate::traits::project::with_replaced_escaping_bound_vars(
+        Ok(crate::traits::with_replaced_escaping_bound_vars(
             self.infcx,
             &mut self.universes,
             constant,

@@ -27,7 +27,7 @@ use crate::{
 
 pub(crate) use hir_def::{
     body::Body,
-    hir::{Expr, ExprId, MatchArm, Pat, PatId},
+    hir::{Expr, ExprId, MatchArm, Pat, PatId, Statement},
     LocalFieldId, VariantId,
 };
 
@@ -44,11 +44,18 @@ pub enum BodyValidationDiagnostic {
         match_expr: ExprId,
         uncovered_patterns: String,
     },
+    RemoveTrailingReturn {
+        return_expr: ExprId,
+    },
+    RemoveUnnecessaryElse {
+        if_expr: ExprId,
+    },
 }
 
 impl BodyValidationDiagnostic {
     pub fn collect(db: &dyn HirDatabase, owner: DefWithBodyId) -> Vec<BodyValidationDiagnostic> {
-        let _p = profile::span("BodyValidationDiagnostic::collect");
+        let _p =
+            tracing::span!(tracing::Level::INFO, "BodyValidationDiagnostic::collect").entered();
         let infer = db.infer(owner);
         let mut validator = ExprValidator::new(owner, infer);
         validator.validate_body(db);
@@ -71,6 +78,10 @@ impl ExprValidator {
         let body = db.body(self.owner);
         let mut filter_map_next_checker = None;
 
+        if matches!(self.owner, DefWithBodyId::FunctionId(_)) {
+            self.check_for_trailing_return(body.body_expr, &body);
+        }
+
         for (id, expr) in body.exprs.iter() {
             if let Some((variant, missed_fields, true)) =
                 record_literal_missing_fields(db, &self.infer, id, expr)
@@ -89,9 +100,16 @@ impl ExprValidator {
                 Expr::Call { .. } | Expr::MethodCall { .. } => {
                     self.validate_call(db, id, expr, &mut filter_map_next_checker);
                 }
+                Expr::Closure { body: body_expr, .. } => {
+                    self.check_for_trailing_return(*body_expr, &body);
+                }
+                Expr::If { .. } => {
+                    self.check_for_unnecessary_else(id, expr, &body);
+                }
                 _ => {}
             }
         }
+
         for (id, pat) in body.pats.iter() {
             if let Some((variant, missed_fields, true)) =
                 record_pattern_missing_fields(db, &self.infer, id, pat)
@@ -151,16 +169,9 @@ impl ExprValidator {
             return;
         }
 
-        let pattern_arena = Arena::new();
-        let ty_arena = Arena::new();
-        let cx = MatchCheckCtx::new(
-            self.owner.module(db.upcast()),
-            self.owner,
-            db,
-            &pattern_arena,
-            &ty_arena,
-        );
+        let cx = MatchCheckCtx::new(self.owner.module(db.upcast()), self.owner, db);
 
+        let pattern_arena = Arena::new();
         let mut m_arms = Vec::with_capacity(arms.len());
         let mut has_lowering_errors = false;
         for arm in arms {
@@ -185,8 +196,9 @@ impl ExprValidator {
                     // If we had a NotUsefulMatchArm diagnostic, we could
                     // check the usefulness of each pattern as we added it
                     // to the matrix here.
+                    let pat = self.lower_pattern(&cx, arm.pat, db, &body, &mut has_lowering_errors);
                     let m_arm = pat_analysis::MatchArm {
-                        pat: self.lower_pattern(&cx, arm.pat, db, &body, &mut has_lowering_errors),
+                        pat: pattern_arena.alloc(pat),
                         has_guard: arm.guard.is_some(),
                         arm_data: (),
                     };
@@ -206,13 +218,13 @@ impl ExprValidator {
         }
 
         let report = match compute_match_usefulness(
-            rustc_pattern_analysis::MatchCtxt { tycx: &cx },
+            &cx,
             m_arms.as_slice(),
             scrut_ty.clone(),
             ValidityConstraint::ValidOnly,
         ) {
             Ok(report) => report,
-            Err(void) => match void {},
+            Err(()) => return,
         };
 
         // FIXME Report unreachable arms
@@ -234,14 +246,67 @@ impl ExprValidator {
         db: &dyn HirDatabase,
         body: &Body,
         have_errors: &mut bool,
-    ) -> &'p DeconstructedPat<'p> {
+    ) -> DeconstructedPat<'p> {
         let mut patcx = match_check::PatCtxt::new(db, &self.infer, body);
         let pattern = patcx.lower_pattern(pat);
-        let pattern = cx.pattern_arena.alloc(cx.lower_pat(&pattern));
+        let pattern = cx.lower_pat(&pattern);
         if !patcx.errors.is_empty() {
             *have_errors = true;
         }
         pattern
+    }
+
+    fn check_for_trailing_return(&mut self, body_expr: ExprId, body: &Body) {
+        match &body.exprs[body_expr] {
+            Expr::Block { statements, tail, .. } => {
+                let last_stmt = tail.or_else(|| match statements.last()? {
+                    Statement::Expr { expr, .. } => Some(*expr),
+                    _ => None,
+                });
+                if let Some(last_stmt) = last_stmt {
+                    self.check_for_trailing_return(last_stmt, body);
+                }
+            }
+            Expr::If { then_branch, else_branch, .. } => {
+                self.check_for_trailing_return(*then_branch, body);
+                if let Some(else_branch) = else_branch {
+                    self.check_for_trailing_return(*else_branch, body);
+                }
+            }
+            Expr::Match { arms, .. } => {
+                for arm in arms.iter() {
+                    let MatchArm { expr, .. } = arm;
+                    self.check_for_trailing_return(*expr, body);
+                }
+            }
+            Expr::Return { .. } => {
+                self.diagnostics.push(BodyValidationDiagnostic::RemoveTrailingReturn {
+                    return_expr: body_expr,
+                });
+            }
+            _ => (),
+        }
+    }
+
+    fn check_for_unnecessary_else(&mut self, id: ExprId, expr: &Expr, body: &Body) {
+        if let Expr::If { condition: _, then_branch, else_branch } = expr {
+            if else_branch.is_none() {
+                return;
+            }
+            if let Expr::Block { statements, tail, .. } = &body.exprs[*then_branch] {
+                let last_then_expr = tail.or_else(|| match statements.last()? {
+                    Statement::Expr { expr, .. } => Some(*expr),
+                    _ => None,
+                });
+                if let Some(last_then_expr) = last_then_expr {
+                    let last_then_expr_ty = &self.infer[last_then_expr];
+                    if last_then_expr_ty.is_never() {
+                        self.diagnostics
+                            .push(BodyValidationDiagnostic::RemoveUnnecessaryElse { if_expr: id })
+                    }
+                }
+            }
+        }
     }
 }
 

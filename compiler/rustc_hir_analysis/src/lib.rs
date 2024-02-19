@@ -55,17 +55,20 @@ This API is completely unstable and subject to change.
 
 */
 
+#![allow(rustc::diagnostic_outside_of_impl)]
 #![allow(rustc::potential_query_instability)]
+#![allow(rustc::untranslatable_diagnostic)]
 #![doc(html_root_url = "https://doc.rust-lang.org/nightly/nightly-rustc/")]
 #![doc(rust_logo)]
 #![feature(rustdoc_internals)]
 #![allow(internal_features)]
 #![feature(control_flow_enum)]
+#![feature(generic_nonzero)]
 #![feature(if_let_guard)]
 #![feature(is_sorted)]
 #![feature(iter_intersperse)]
 #![feature(let_chains)]
-#![feature(min_specialization)]
+#![cfg_attr(bootstrap, feature(min_specialization))]
 #![feature(never_type)]
 #![feature(lazy_cell)]
 #![feature(slice_partition_dedup)]
@@ -169,15 +172,16 @@ pub fn check_crate(tcx: TyCtxt<'_>) -> Result<(), ErrorGuaranteed> {
 
     tcx.sess.time("coherence_checking", || {
         // Check impls constrain their parameters
-        let mut res =
+        let res =
             tcx.hir().try_par_for_each_module(|module| tcx.ensure().check_mod_impl_wf(module));
 
         for &trait_def_id in tcx.all_local_trait_impls(()).keys() {
-            res = res.and(tcx.ensure().coherent_trait(trait_def_id));
+            let _ = tcx.ensure().coherent_trait(trait_def_id);
         }
         // these queries are executed for side-effects (error reporting):
-        res.and(tcx.ensure().crate_inherent_impls(()))
-            .and(tcx.ensure().crate_inherent_impls_overlap_check(()))
+        let _ = tcx.ensure().crate_inherent_impls(());
+        let _ = tcx.ensure().crate_inherent_impls_overlap_check(());
+        res
     })?;
 
     if tcx.features().rustc_attrs {
@@ -185,8 +189,10 @@ pub fn check_crate(tcx: TyCtxt<'_>) -> Result<(), ErrorGuaranteed> {
     }
 
     tcx.sess.time("wf_checking", || {
-        tcx.hir().try_par_for_each_module(|module| tcx.ensure().check_mod_type_wf(module))
-    })?;
+        tcx.hir().par_for_each_module(|module| {
+            let _ = tcx.ensure().check_mod_type_wf(module);
+        })
+    });
 
     if tcx.features().rustc_attrs {
         collect::test_opaque_hidden_types(tcx)?;
@@ -209,7 +215,7 @@ pub fn check_crate(tcx: TyCtxt<'_>) -> Result<(), ErrorGuaranteed> {
 
     tcx.ensure().check_unused_traits(());
 
-    if let Some(reported) = tcx.dcx().has_errors() { Err(reported) } else { Ok(()) }
+    Ok(())
 }
 
 /// A quasi-deprecated helper used in rustdoc and clippy to get

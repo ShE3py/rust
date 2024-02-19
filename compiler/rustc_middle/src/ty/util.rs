@@ -18,7 +18,7 @@ use rustc_hir::def_id::{CrateNum, DefId, LocalDefId};
 use rustc_index::bit_set::GrowableBitSet;
 use rustc_macros::HashStable;
 use rustc_session::Limit;
-use rustc_span::sym;
+use rustc_span::{sym, Symbol};
 use rustc_target::abi::{Integer, IntegerType, Primitive, Size};
 use rustc_target::spec::abi::Abi;
 use smallvec::SmallVec;
@@ -96,13 +96,8 @@ impl<'tcx> Discr<'tcx> {
     }
 }
 
-pub trait IntTypeExt {
-    fn to_ty<'tcx>(&self, tcx: TyCtxt<'tcx>) -> Ty<'tcx>;
-    fn disr_incr<'tcx>(&self, tcx: TyCtxt<'tcx>, val: Option<Discr<'tcx>>) -> Option<Discr<'tcx>>;
-    fn initial_discriminant<'tcx>(&self, tcx: TyCtxt<'tcx>) -> Discr<'tcx>;
-}
-
-impl IntTypeExt for IntegerType {
+#[extension(pub trait IntTypeExt)]
+impl IntegerType {
     fn to_ty<'tcx>(&self, tcx: TyCtxt<'tcx>) -> Ty<'tcx> {
         match self {
             IntegerType::Pointer(true) => tcx.types.isize,
@@ -541,13 +536,15 @@ impl<'tcx> TyCtxt<'tcx> {
         Ok(())
     }
 
-    /// Returns `true` if `def_id` refers to a closure (e.g., `|x| x * 2`). Note
-    /// that closures have a `DefId`, but the closure *expression* also
-    /// has a `HirId` that is located within the context where the
-    /// closure appears (and, sadly, a corresponding `NodeId`, since
-    /// those are not yet phased out). The parent of the closure's
-    /// `DefId` will also be the context where it appears.
-    pub fn is_closure_or_coroutine(self, def_id: DefId) -> bool {
+    /// Returns `true` if `def_id` refers to a closure, coroutine, or coroutine-closure
+    /// (i.e. an async closure). These are all represented by `hir::Closure`, and all
+    /// have the same `DefKind`.
+    ///
+    /// Note that closures have a `DefId`, but the closure *expression* also has a
+    // `HirId` that is located within the context where the closure appears (and, sadly,
+    // a corresponding `NodeId`, since those are not yet phased out). The parent of
+    // the closure's `DefId` will also be the context where it appears.
+    pub fn is_closure_like(self, def_id: DefId) -> bool {
         matches!(self.def_kind(def_id), DefKind::Closure)
     }
 
@@ -1119,6 +1116,7 @@ impl<'tcx> Ty<'tcx> {
             ty::Adt(..)
             | ty::Bound(..)
             | ty::Closure(..)
+            | ty::CoroutineClosure(..)
             | ty::Dynamic(..)
             | ty::Foreign(_)
             | ty::Coroutine(..)
@@ -1158,6 +1156,7 @@ impl<'tcx> Ty<'tcx> {
             ty::Adt(..)
             | ty::Bound(..)
             | ty::Closure(..)
+            | ty::CoroutineClosure(..)
             | ty::Dynamic(..)
             | ty::Foreign(_)
             | ty::Coroutine(..)
@@ -1280,7 +1279,11 @@ impl<'tcx> Ty<'tcx> {
             // Conservatively return `false` for all others...
 
             // Anonymous function types
-            ty::FnDef(..) | ty::Closure(..) | ty::Dynamic(..) | ty::Coroutine(..) => false,
+            ty::FnDef(..)
+            | ty::Closure(..)
+            | ty::CoroutineClosure(..)
+            | ty::Dynamic(..)
+            | ty::Coroutine(..) => false,
 
             // Generic or inferred types
             //
@@ -1312,6 +1315,7 @@ impl<'tcx> Ty<'tcx> {
         ty
     }
 
+    // FIXME(compiler-errors): Think about removing this.
     #[inline]
     pub fn outer_exclusive_binder(self) -> ty::DebruijnIndex {
         self.0.outer_exclusive_binder
@@ -1424,6 +1428,7 @@ pub fn needs_drop_components<'tcx>(
         | ty::Placeholder(..)
         | ty::Infer(_)
         | ty::Closure(..)
+        | ty::CoroutineClosure(..)
         | ty::Coroutine(..)
         | ty::CoroutineWitness(..) => Ok(smallvec![ty]),
     }
@@ -1456,7 +1461,11 @@ pub fn is_trivially_const_drop(ty: Ty<'_>) -> bool {
 
         // Not trivial because they have components, and instead of looking inside,
         // we'll just perform trait selection.
-        ty::Closure(..) | ty::Coroutine(..) | ty::CoroutineWitness(..) | ty::Adt(..) => false,
+        ty::Closure(..)
+        | ty::CoroutineClosure(..)
+        | ty::Coroutine(..)
+        | ty::CoroutineWitness(..)
+        | ty::Adt(..) => false,
 
         ty::Array(ty, _) | ty::Slice(ty) => is_trivially_const_drop(ty),
 
@@ -1538,9 +1547,15 @@ pub fn is_doc_notable_trait(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
         .any(|items| items.iter().any(|item| item.has_name(sym::notable_trait)))
 }
 
-/// Determines whether an item is an intrinsic by Abi.
-pub fn is_intrinsic(tcx: TyCtxt<'_>, def_id: LocalDefId) -> bool {
-    matches!(tcx.fn_sig(def_id).skip_binder().abi(), Abi::RustIntrinsic | Abi::PlatformIntrinsic)
+/// Determines whether an item is an intrinsic by Abi. or by whether it has a `rustc_intrinsic` attribute
+pub fn intrinsic(tcx: TyCtxt<'_>, def_id: LocalDefId) -> Option<Symbol> {
+    if matches!(tcx.fn_sig(def_id).skip_binder().abi(), Abi::RustIntrinsic | Abi::PlatformIntrinsic)
+        || tcx.has_attr(def_id, sym::rustc_intrinsic)
+    {
+        Some(tcx.item_name(def_id.into()))
+    } else {
+        None
+    }
 }
 
 pub fn provide(providers: &mut Providers) {
@@ -1548,7 +1563,7 @@ pub fn provide(providers: &mut Providers) {
         reveal_opaque_types_in_bounds,
         is_doc_hidden,
         is_doc_notable_trait,
-        is_intrinsic,
+        intrinsic,
         ..*providers
     }
 }

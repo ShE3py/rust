@@ -86,14 +86,11 @@ const EXTRA_CHECK_CFGS: &[(Option<Mode>, &str, Option<&[&'static str]>)] = &[
     (Some(Mode::Std), "no_global_oom_handling", None),
     (Some(Mode::Std), "no_rc", None),
     (Some(Mode::Std), "no_sync", None),
+    (Some(Mode::Std), "netbsd10", None),
     (Some(Mode::Std), "backtrace_in_libstd", None),
     /* Extra values not defined in the built-in targets yet, but used in std */
     (Some(Mode::Std), "target_env", Some(&["libnx"])),
     // (Some(Mode::Std), "target_os", Some(&[])),
-    // #[cfg(bootstrap)] zkvm
-    (Some(Mode::Std), "target_os", Some(&["zkvm"])),
-    // #[cfg(bootstrap)] risc0
-    (Some(Mode::Std), "target_vendor", Some(&["risc0"])),
     (Some(Mode::Std), "target_arch", Some(&["spirv", "nvptx", "xtensa"])),
     /* Extra names used by dependencies */
     // FIXME: Used by serde_json, but we should not be triggering on external dependencies.
@@ -734,12 +731,12 @@ impl Build {
     }
 
     /// Gets the space-separated set of activated features for the compiler.
-    fn rustc_features(&self, kind: Kind) -> String {
+    fn rustc_features(&self, kind: Kind, target: TargetSelection) -> String {
         let mut features = vec![];
         if self.config.jemalloc {
             features.push("jemalloc");
         }
-        if self.config.llvm_enabled() || kind == Kind::Check {
+        if self.config.llvm_enabled(target) || kind == Kind::Check {
             features.push("llvm");
         }
         // keep in sync with `bootstrap/compile.rs:rustc_cargo_env`
@@ -796,12 +793,16 @@ impl Build {
         self.stage_out(compiler, mode).join(&*target.triple).join(self.cargo_dir())
     }
 
-    /// Root output directory for LLVM compiled for `target`
+    /// Root output directory of LLVM for `target`
     ///
     /// Note that if LLVM is configured externally then the directory returned
     /// will likely be empty.
     fn llvm_out(&self, target: TargetSelection) -> PathBuf {
-        self.out.join(&*target.triple).join("llvm")
+        if self.config.llvm_from_ci && self.config.build == target {
+            self.config.ci_llvm_root()
+        } else {
+            self.out.join(&*target.triple).join("llvm")
+        }
     }
 
     fn lld_out(&self, target: TargetSelection) -> PathBuf {
@@ -1560,7 +1561,8 @@ impl Build {
                         || target
                             .map(|t| self.config.profiler_enabled(t))
                             .unwrap_or_else(|| self.config.any_profiler_enabled()))
-                    && (dep != "rustc_codegen_llvm" || self.config.llvm_enabled())
+                    && (dep != "rustc_codegen_llvm"
+                        || self.config.hosts.iter().any(|host| self.config.llvm_enabled(*host)))
                 {
                     list.push(*dep);
                 }

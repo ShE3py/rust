@@ -9,7 +9,7 @@ ar_archive_writer = "0.1.5"
 bitflags = "2.4.1"
 cc = "1.0.69"
 itertools = "0.11"
-jobserver = "0.1.27"
+jobserver = "0.1.28"
 pathdiff = "0.2.0"
 regex = "1.4"
 rustc_arena = { path = "../rustc_arena" }
@@ -51,5 +51,5 @@ default-features = false
 features = ["read_core", "elf", "macho", "pe", "xcoff", "unaligned", "archive", "write"]
 
 [target.'cfg(windows)'.dependencies.windows]
-version = "0.48.0"
+version = "0.52.0"
 features = ["Win32_Globalization"]

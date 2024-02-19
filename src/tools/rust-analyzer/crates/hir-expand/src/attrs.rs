@@ -123,7 +123,7 @@ impl RawAttrs {
                 .filter_map(|(idx, attr)| Attr::from_tt(db, attr, index.with_cfg_attr(idx)));
 
             let cfg_options = &crate_graph[krate].cfg_options;
-            let cfg = Subtree { delimiter: subtree.delimiter, token_trees: cfg.to_vec() };
+            let cfg = Subtree { delimiter: subtree.delimiter, token_trees: Box::from(cfg) };
             let cfg = CfgExpr::parse(&cfg);
             if cfg_options.check(&cfg) == Some(false) {
                 smallvec![]
@@ -230,12 +230,12 @@ impl Attr {
                     )
                 )
             })
-            .unwrap_or_else(|| tt.len());
+            .unwrap_or(tt.len());
 
         let (path, input) = tt.split_at(path_end);
         let path = Interned::new(ModPath::from_tt(db, path)?);
 
-        let input = match input.get(0) {
+        let input = match input.first() {
             Some(tt::TokenTree::Subtree(tree)) => {
                 Some(Interned::new(AttrInput::TokenTree(Box::new(tree.clone()))))
             }

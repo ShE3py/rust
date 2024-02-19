@@ -1,9 +1,10 @@
-use std::num::NonZeroU32;
+use std::num::NonZero;
 
 use rustc_ast::token;
 use rustc_ast::util::literal::LitError;
 use rustc_errors::{
-    codes::*, DiagCtxt, DiagnosticBuilder, DiagnosticMessage, IntoDiagnostic, Level, MultiSpan,
+    codes::*, DiagCtxt, DiagnosticBuilder, DiagnosticMessage, ErrorGuaranteed, IntoDiagnostic,
+    Level, MultiSpan,
 };
 use rustc_macros::Diagnostic;
 use rustc_span::{ErrorGuaranteed, Span, Symbol};
@@ -26,7 +27,7 @@ impl<'a> IntoDiagnostic<'a> for FeatureGateError {
 #[derive(Subdiagnostic)]
 #[note(session_feature_diagnostic_for_issue)]
 pub struct FeatureDiagnosticForIssue {
-    pub n: NonZeroU32,
+    pub n: NonZero<u32>,
 }
 
 #[derive(Subdiagnostic)]
@@ -377,34 +378,24 @@ pub fn report_lit_error(
         valid.then(|| format!("0{}{}", base_char.to_ascii_lowercase(), &suffix[1..]))
     }
 
-    let token::Lit { kind, symbol, suffix, .. } = lit;
     let dcx = &sess.dcx;
     match err {
-        LitError::LexerError => {
-            dcx.span_delayed_bug(span, "encountered a lexer error, but no error was emitted")
+        LitError::InvalidSuffix(suffix) => {
+            dcx.emit_err(InvalidLiteralSuffix { span, kind: lit.kind.descr(), suffix })
         }
-        LitError::InvalidSuffix => {
-            if let Some(suffix) = suffix {
-                dcx.emit_err(InvalidLiteralSuffix { span, kind: kind.descr(), suffix })
-            } else {
-                dcx.span_bug(span, "invalid suffix, but no suffix?")
-            }
-        }
-        LitError::InvalidIntSuffix => {
-            let suf = suffix.expect("suffix error with no suffix");
-            let suf = suf.as_str();
+        LitError::InvalidIntSuffix(suffix) => {
+            let suf = suffix.as_str();
             if looks_like_width_suffix(&['i', 'u'], suf) {
                 // If it looks like a width, try to be helpful.
                 dcx.emit_err(InvalidIntLiteralWidth { span, width: suf[1..].into() })
-            } else if let Some(fixed) = fix_base_capitalisation(symbol.as_str(), suf) {
+            } else if let Some(fixed) = fix_base_capitalisation(lit.symbol.as_str(), suf) {
                 dcx.emit_err(InvalidNumLiteralBasePrefix { span, fixed })
             } else {
                 dcx.emit_err(InvalidNumLiteralSuffix { span, suffix: suf.to_string() })
             }
         }
-        LitError::InvalidFloatSuffix => {
-            let suf = suffix.expect("suffix error with no suffix");
-            let suf = suf.as_str();
+        LitError::InvalidFloatSuffix(suffix) => {
+            let suf = suffix.as_str();
             if looks_like_width_suffix(&['f'], suf) {
                 // If it looks like a width, try to be helpful.
                 dcx.emit_err(InvalidFloatLiteralWidth { span, width: suf[1..].to_string() })
