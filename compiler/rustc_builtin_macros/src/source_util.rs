@@ -131,9 +131,7 @@ pub fn expand_include<'cx>(
     }
     impl<'a> base::MacResult for ExpandResult<'a> {
         fn make_expr(mut self: Box<ExpandResult<'a>>) -> Option<P<ast::Expr>> {
-            let Ok(r) = base::parse_expr(&mut self.p) else {
-                return None;
-            };
+            let expr = base::parse_expr(&mut self.p).ok()?;
             if self.p.token != token::Eof {
                 self.p.sess.buffer_lint(
                     INCOMPLETE_INCLUDE,
@@ -142,7 +140,7 @@ pub fn expand_include<'cx>(
                     "include macro expected single expression in source",
                 );
             }
-            Some(r)
+            Some(expr)
         }
 
         fn make_items(mut self: Box<ExpandResult<'a>>) -> Option<SmallVec<[P<ast::Item>; 1]>> {
