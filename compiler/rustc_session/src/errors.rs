@@ -7,7 +7,7 @@ use rustc_errors::{
     Level, MultiSpan,
 };
 use rustc_macros::Diagnostic;
-use rustc_span::{ErrorGuaranteed, Span, Symbol};
+use rustc_span::{Span, Symbol};
 use rustc_target::spec::{SplitDebuginfo, StackProtector, TargetTriple};
 
 use crate::parse::ParseSess;

@@ -73,14 +73,15 @@ fn handle_array_element(
 
     match expr.kind {
         ExprKind::Lit(token_lit) => {
-            match LitKind::from_token_lit(token_lit).unwrap_or(LitKind::Err) {
-                LitKind::Int(val, LitIntType::Unsuffixed | LitIntType::Unsigned(UintTy::U8))
-                    if let Ok(val) = u8::try_from(val.get()) =>
-                {
+            match LitKind::from_token_lit(token_lit) {
+                Ok(LitKind::Int(
+                    val,
+                    LitIntType::Unsuffixed | LitIntType::Unsigned(UintTy::U8),
+                )) if let Ok(val) = u8::try_from(val.get()) => {
                     return Some(val);
                 }
-                LitKind::Byte(val) => return Some(val),
-                LitKind::ByteStr(..) => {
+                Ok(LitKind::Byte(val)) => return Some(val),
+                Ok(LitKind::ByteStr(..)) => {
                     emitted_err.get_or_insert_with(|| {
                         dcx.emit_err(errors::ConcatBytesArray { span: expr.span, bytestr: true })
                     });

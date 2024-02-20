@@ -2926,7 +2926,7 @@ impl<'a> Parser<'a> {
                         attrs: Default::default(),
                         pat: self.mk_pat(span, ast::PatKind::Err(guar)),
                         guard: None,
-                        body: Some(self.mk_expr_err(span)),
+                        body: Some(self.mk_expr_err(span, guar)),
                         span,
                         id: DUMMY_NODE_ID,
                         is_placeholder: false,
