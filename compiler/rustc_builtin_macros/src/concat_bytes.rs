@@ -174,9 +174,9 @@ pub fn expand_concat_bytes(
     }
     if !missing_literals.is_empty() {
         let guar = cx.dcx().emit_err(errors::ConcatBytesMissingLiteral { spans: missing_literals });
-        return MacEager::expr(DummyResult::raw_expr(sp, Err(guar)));
+        return MacEager::expr(DummyResult::raw_expr(sp, Some(guar)));
     } else if let Some(guar) = emitted_err {
-        return MacEager::expr(DummyResult::raw_expr(sp, Err(guar)));
+        return MacEager::expr(DummyResult::raw_expr(sp, Some(guar)));
     }
     let sp = cx.with_def_site_ctxt(sp);
     MacEager::expr(cx.expr_byte_str(sp, accumulator))

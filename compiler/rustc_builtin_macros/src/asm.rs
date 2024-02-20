@@ -746,7 +746,7 @@ pub(super) fn expand_asm<'cx>(
                     attrs: ast::AttrVec::new(),
                     tokens: None,
                 }),
-                Err(guar) => DummyResult::raw_expr(sp, Err(guar)),
+                Err(guar) => DummyResult::raw_expr(sp, Some(guar)),
             };
             MacEager::expr(expr)
         }

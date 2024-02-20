@@ -532,7 +532,7 @@ impl MacResult for MacEager {
 /// after hitting errors.
 #[derive(Copy, Clone)]
 pub struct DummyResult {
-    kind: Result<(), ErrorGuaranteed>,
+    guar: Option<ErrorGuaranteed>,
     span: Span,
 }
 
@@ -542,19 +542,19 @@ impl DummyResult {
     /// Use this as a return value after hitting any errors and
     /// calling `span_err`.
     pub fn any(span: Span, guar: ErrorGuaranteed) -> Box<dyn MacResult + 'static> {
-        Box::new(DummyResult { kind: Err(guar), span })
+        Box::new(DummyResult { guar: Some(guar), span })
     }
 
     /// Same as `any`, but must be a valid fragment, not error.
     pub fn any_valid(span: Span) -> Box<dyn MacResult + 'static> {
-        Box::new(DummyResult { kind: Ok(()), span })
+        Box::new(DummyResult { guar: None, span })
     }
 
     /// A plain dummy expression.
-    pub fn raw_expr(sp: Span, kind: Result<(), ErrorGuaranteed>) -> P<ast::Expr> {
+    pub fn raw_expr(sp: Span, guar: Option<ErrorGuaranteed>) -> P<ast::Expr> {
         P(ast::Expr {
             id: ast::DUMMY_NODE_ID,
-            kind: if let Err(guar) = kind {
+            kind: if let Some(guar) = guar {
                 ast::ExprKind::Err(guar)
             } else {
                 ast::ExprKind::Tup(ThinVec::new())
@@ -586,7 +586,7 @@ impl DummyResult {
 
 impl MacResult for DummyResult {
     fn make_expr(self: Box<DummyResult>) -> Option<P<ast::Expr>> {
-        Some(DummyResult::raw_expr(self.span, self.kind))
+        Some(DummyResult::raw_expr(self.span, self.guar))
     }
 
     fn make_pat(self: Box<DummyResult>) -> Option<P<ast::Pat>> {
@@ -612,7 +612,7 @@ impl MacResult for DummyResult {
     fn make_stmts(self: Box<DummyResult>) -> Option<SmallVec<[ast::Stmt; 1]>> {
         Some(smallvec![ast::Stmt {
             id: ast::DUMMY_NODE_ID,
-            kind: ast::StmtKind::Expr(DummyResult::raw_expr(self.span, self.kind)),
+            kind: ast::StmtKind::Expr(DummyResult::raw_expr(self.span, self.guar)),
             span: self.span,
         }])
     }

@@ -358,7 +358,7 @@ fn make_format_args(
                         // disabled (see RFC #2795)
                         let guar = ecx.dcx().emit_err(errors::FormatNoArgNamed { span, name });
                         unnamed_arg_after_named_arg = true;
-                        DummyResult::raw_expr(span, Err(guar))
+                        DummyResult::raw_expr(span, Some(guar))
                     };
                     Ok(args.add(FormatArgument { kind: FormatArgumentKind::Captured(ident), expr }))
                 }
@@ -977,7 +977,7 @@ fn expand_format_args_impl<'cx>(
     match parse_args(ecx, sp, tts) {
         Ok(input) => match make_format_args(ecx, input, nl) {
             Ok(format_args) => MacEager::expr(ecx.expr(sp, ExprKind::FormatArgs(P(format_args)))),
-            Err(guar) => MacEager::expr(DummyResult::raw_expr(sp, Err(guar))),
+            Err(guar) => MacEager::expr(DummyResult::raw_expr(sp, Some(guar))),
         },
         Err(err) => {
             let guar = err.emit();

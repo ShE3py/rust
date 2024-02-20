@@ -95,7 +95,7 @@ fn default_enum_substructure(
                 vec![Ident::new(kw::SelfUpper, default_variant.span), default_variant.ident],
             ))
         }
-        Err(guar) => DummyResult::raw_expr(trait_span, Err(guar)),
+        Err(guar) => DummyResult::raw_expr(trait_span, Some(guar)),
     };
     BlockOrExpr::new_expr(expr)
 }
