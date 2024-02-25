@@ -18,7 +18,7 @@ use crate::traits::{
     Obligation, ObligationCause, PredicateObligation, PredicateObligations, SelectionContext,
 };
 use rustc_data_structures::fx::FxIndexSet;
-use rustc_errors::Diagnostic;
+use rustc_errors::{DiagnosticBuilder, EmissionGuarantee};
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 use rustc_infer::infer::{DefineOpaqueTypes, InferCtxt, TyCtxtInferExt};
@@ -58,7 +58,7 @@ pub struct OverlapResult<'tcx> {
     pub involves_placeholder: bool,
 }
 
-pub fn add_placeholder_note(err: &mut Diagnostic) {
+pub fn add_placeholder_note<G: EmissionGuarantee>(err: &mut DiagnosticBuilder<'_, G>) {
     err.note(
         "this behavior recently changed as a result of a bug fix; \
          see rust-lang/rust#56105 for details",
@@ -320,22 +320,25 @@ fn impl_intersection_has_impossible_obligation<'a, 'cx, 'tcx>(
         let mut errors = fulfill_cx.select_where_possible(infcx);
         errors.pop().map(|err| err.obligation)
     } else {
-        obligations.iter().cloned().find(|obligation| {
-            // We use `evaluate_root_obligation` to correctly track intercrate
-            // ambiguity clauses. We cannot use this in the new solver.
-            let evaluation_result = selcx.evaluate_root_obligation(obligation);
+        obligations
+            .iter()
+            .find(|obligation| {
+                // We use `evaluate_root_obligation` to correctly track intercrate
+                // ambiguity clauses. We cannot use this in the new solver.
+                let evaluation_result = selcx.evaluate_root_obligation(obligation);
 
-            match evaluation_result {
-                Ok(result) => !result.may_apply(),
-                // If overflow occurs, we need to conservatively treat the goal as possibly holding,
-                // since there can be instantiations of this goal that don't overflow and result in
-                // success. This isn't much of a problem in the old solver, since we treat overflow
-                // fatally (this still can be encountered: <https://github.com/rust-lang/rust/issues/105231>),
-                // but in the new solver, this is very important for correctness, since overflow
-                // *must* be treated as ambiguity for completeness.
-                Err(_overflow) => false,
-            }
-        })
+                match evaluation_result {
+                    Ok(result) => !result.may_apply(),
+                    // If overflow occurs, we need to conservatively treat the goal as possibly holding,
+                    // since there can be instantiations of this goal that don't overflow and result in
+                    // success. This isn't much of a problem in the old solver, since we treat overflow
+                    // fatally (this still can be encountered: <https://github.com/rust-lang/rust/issues/105231>),
+                    // but in the new solver, this is very important for correctness, since overflow
+                    // *must* be treated as ambiguity for completeness.
+                    Err(_overflow) => false,
+                }
+            })
+            .cloned()
     }
 }
 
