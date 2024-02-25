@@ -11,6 +11,7 @@ use crate::errors;
 use crate::maybe_whole;
 
 use crate::errors::MalformedLoopLabel;
+use crate::parser::Recovered;
 use ast::Label;
 use rustc_ast as ast;
 use rustc_ast::ptr::P;
@@ -661,7 +662,6 @@ impl<'a> Parser<'a> {
                 if self.token != token::Eof && classify::expr_requires_semi_to_be_stmt(expr) =>
             {
                 // Just check for errors and recover; do not eat semicolon yet.
-                // `expect_one_of` returns PResult<'a, bool /* recovered */>
 
                 let expect_result =
                     self.expect_one_of(&[], &[token::Semi, token::CloseDelim(Delimiter::Brace)]);
@@ -670,8 +670,8 @@ impl<'a> Parser<'a> {
                 // the `expr` with `ExprKind::Err`.
                 let replace_with_err = 'break_recover: {
                     match expect_result {
-                        Ok(false) => None,
-                        Ok(true) => {
+                        Ok(Recovered::No) => None,
+                        Ok(Recovered::Yes) => {
                             // Recovered from parser, skip type error to avoid extra errors.
                             let guar = self
                                 .dcx()
@@ -699,7 +699,7 @@ impl<'a> Parser<'a> {
                                                     token.kind,
                                                     token::Ident(
                                                         kw::For | kw::Loop | kw::While,
-                                                        false
+                                                        token::IdentIsRaw::No
                                                     ) | token::OpenDelim(Delimiter::Brace)
                                                 )
                                         })
