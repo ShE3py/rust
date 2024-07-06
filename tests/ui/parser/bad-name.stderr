@@ -9,6 +9,12 @@ error: expected a pattern, found an expression
    |
 LL |   let x.y::<isize>.z foo;
    |       ^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to evaluate an expression
+   |
+LL -   let x.y::<isize>.z foo;
+LL +   x.y::<isize>.z foo;
+   |
 
 error: expected one of `(`, `.`, `::`, `:`, `;`, `=`, `?`, `|`, or an operator, found `foo`
   --> $DIR/bad-name.rs:2:22

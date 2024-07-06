@@ -57,9 +57,7 @@ fn type_cast() {
 fn operator() {
     match 0 {
         1 + 1 => (), //~ error: expected a pattern, found an expression
-        (1 + 2) * 3 => (),
-        //~^ error: expected a pattern, found an expression
-        //~| error: expected a pattern, found an expression
+        (1 + 2) * 3 => (), //~ error: expected a pattern, found an expression
     }
 }
 

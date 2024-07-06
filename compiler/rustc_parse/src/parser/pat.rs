@@ -6,8 +6,8 @@ use crate::errors::{
     InclusiveRangeExtraEquals, InclusiveRangeMatchArrow, InclusiveRangeNoEnd, InvalidMutInPattern,
     ParenRangeSuggestion, PatternOnWrongSideOfAt, RemoveLet, RepeatedMutInPattern,
     SwitchRefBoxOrder, TopLevelOrPatternNotAllowed, TopLevelOrPatternNotAllowedSugg,
-    TrailingVertNotAllowed, UnexpectedExpressionInPattern, UnexpectedLifetimeInPattern,
-    UnexpectedParenInRangePat, UnexpectedParenInRangePatSugg,
+    TrailingVertNotAllowed, UnexpectedExpressionInPattern, UnexpectedExpressionInPatternSugg,
+    UnexpectedLifetimeInPattern, UnexpectedParenInRangePat, UnexpectedParenInRangePatSugg,
     UnexpectedVertVertBeforeFunctionParam, UnexpectedVertVertInPattern, WrapInParens,
 };
 use crate::parser::expr::{could_be_unclosed_char_literal, DestructuredFloat, LhsExpr};
@@ -15,12 +15,13 @@ use crate::{maybe_recover_from_interpolated_ty_qpath, maybe_whole};
 use rustc_ast::mut_visit::{walk_pat, MutVisitor};
 use rustc_ast::ptr::P;
 use rustc_ast::token::{self, BinOpToken, Delimiter, Token};
+use rustc_ast::visit::{walk_arm, walk_pat, walk_pat_field, Visitor};
 use rustc_ast::{
-    self as ast, AttrVec, BindingMode, ByRef, Expr, ExprKind, MacCall, Mutability, Pat, PatField,
-    PatFieldsRest, PatKind, Path, QSelf, RangeEnd, RangeSyntax,
+    self as ast, Arm, AttrVec, BindingMode, ByRef, Expr, ExprKind, LocalKind, MacCall, Mutability,
+    Pat, PatField, PatFieldsRest, PatKind, Path, QSelf, RangeEnd, RangeSyntax, Stmt, StmtKind,
 };
 use rustc_ast_pretty::pprust;
-use rustc_errors::{Applicability, Diag, PResult};
+use rustc_errors::{Applicability, Diag, PResult, StashKey};
 use rustc_session::errors::ExprParenthesesNeeded;
 use rustc_span::source_map::{respan, Spanned};
 use rustc_span::symbol::{kw, sym, Ident};
@@ -446,10 +447,193 @@ impl<'a> Parser<'a> {
             || self.token.kind == token::CloseDelim(Delimiter::Parenthesis)
                 && self.look_ahead(1, Token::is_range_separator);
 
+        let span = expr.span;
+
         Some((
-            self.dcx().emit_err(UnexpectedExpressionInPattern { span: expr.span, is_bound }),
-            expr.span,
+            self.dcx().stash_err(
+                span,
+                StashKey::ExprInPat,
+                UnexpectedExpressionInPattern { span, is_bound },
+            ),
+            span,
         ))
+    }
+
+    /// Called by [`Parser::parse_stmt_without_recovery`], used to add statement-aware subdiagnostics to the errors stashed
+    /// by [`Parser::maybe_recover_trailing_expr`].
+    pub(super) fn maybe_emit_stashed_expr_in_pats(&mut self, stmt: &Stmt) {
+        if self.dcx().has_errors().is_none() {
+            // No need to walk the statement if there's no stashed errors.
+            return;
+        }
+
+        struct PatVisitor<'a> {
+            /// `self`
+            parser: &'a Parser<'a>,
+            /// The freshly-parsed statement.
+            stmt: &'a Stmt,
+            /// The current match arm (for arm guard suggestions).
+            arm: Option<&'a Arm>,
+            /// The current struct field (for variable name suggestions).
+            field: Option<&'a PatField>,
+        }
+
+        impl<'a> PatVisitor<'a> {
+            /// Looks for stashed [`StashKey::ExprInPat`] errors in `stash_span`, and emit them with suggestions.
+            /// `stash_span` is contained in `expr_span`, the latter being larger in borrow patterns;
+            /// ```txt
+            /// &mut x.y
+            /// -----^^^ `stash_span`
+            /// |
+            /// `expr_span`
+            /// ```
+            /// `is_range_bound` is used to exclude arm guard suggestions in range pattern bounds.
+            fn emit_now(&self, stash_span: Span, expr_span: Span, is_range_bound: bool) {
+                self.parser.dcx().try_steal_modify_and_emit_err(
+                    stash_span,
+                    StashKey::ExprInPat,
+                    |err| {
+                        let sm = self.parser.psess.source_map();
+                        let stmt = self.stmt;
+                        let line_lo = sm.span_extend_to_line(stmt.span).shrink_to_lo();
+                        let indentation = sm.indentation_before(stmt.span).unwrap_or_default();
+                        let expr = self.parser.span_to_snippet(expr_span).unwrap();
+
+                        // Includes pre-pats (e.g. `&mut <err>`) in the diagnostic.
+                        err.span.replace(stash_span, expr_span);
+
+                        if let StmtKind::Let(local) = &stmt.kind {
+                            match &local.kind {
+                                // help: remove the `let`
+                                LocalKind::Decl | LocalKind::Init(_) => {
+                                    err.subdiagnostic(
+                                        UnexpectedExpressionInPatternSugg::RemoveLet {
+                                            let_span: local
+                                                .span
+                                                .shrink_to_lo()
+                                                .until(local.pat.span),
+                                            ty_span: local
+                                                .colon_sp
+                                                .map(|sp| sp.to(local.ty.as_ref().unwrap().span)),
+                                            has_initializer: !matches!(local.kind, LocalKind::Decl),
+                                        },
+                                    );
+
+                                    // don't suggest `let const { pat } = expr;`
+                                    return;
+                                }
+
+                                LocalKind::InitElse(_, _) => {}
+                            }
+                        }
+
+                        // help: use an arm guard `if val == expr`
+                        if let Some(arm) = &self.arm
+                            && !is_range_bound
+                        {
+                            let (ident, ident_span) = match self.field {
+                                Some(field) => {
+                                    (field.ident.to_string(), field.ident.span.to(expr_span))
+                                }
+                                None => ("val".to_owned(), expr_span),
+                            };
+
+                            match &arm.guard {
+                                None => {
+                                    err.subdiagnostic(
+                                        UnexpectedExpressionInPatternSugg::CreateGuard {
+                                            ident_span,
+                                            pat_hi: arm.pat.span.shrink_to_hi(),
+                                            ident,
+                                            expr: expr.clone(),
+                                        },
+                                    );
+                                }
+                                Some(guard) => {
+                                    err.subdiagnostic(
+                                        UnexpectedExpressionInPatternSugg::UpdateGuard {
+                                            ident_span,
+                                            guard_lo: guard.span.shrink_to_lo(),
+                                            guard_hi: guard.span.shrink_to_hi(),
+                                            ident,
+                                            expr: expr.clone(),
+                                        },
+                                    );
+                                }
+                            }
+                        }
+
+                        // help: extract the expr into a `const VAL: _ = expr`
+                        let ident = match self.field {
+                            Some(field) => field.ident.as_str().to_uppercase(),
+                            None => "VAL".to_owned(),
+                        };
+                        err.subdiagnostic(UnexpectedExpressionInPatternSugg::Const {
+                            stmt_lo: line_lo,
+                            ident_span: expr_span,
+                            expr,
+                            ident,
+                            indentation,
+                        });
+
+                        // help: wrap the expr in a `const { expr }`
+                        // FIXME(inline_const_pat): once stabilized, remove this check and remove the `(requires #[feature(inline_const_pat)])` note from the message
+                        if self.parser.psess.unstable_features.is_nightly_build() {
+                            err.subdiagnostic(UnexpectedExpressionInPatternSugg::InlineConst {
+                                start_span: expr_span.shrink_to_lo(),
+                                end_span: expr_span.shrink_to_hi(),
+                            });
+                        }
+                    },
+                );
+            }
+        }
+
+        impl<'a> Visitor<'a> for PatVisitor<'a> {
+            fn visit_arm(&mut self, a: &'a Arm) -> Self::Result {
+                self.arm = Some(a);
+                walk_arm(self, a);
+                self.arm = None;
+            }
+
+            fn visit_pat_field(&mut self, fp: &'a PatField) -> Self::Result {
+                self.field = Some(fp);
+                walk_pat_field(self, fp);
+                self.field = None;
+            }
+
+            fn visit_pat(&mut self, p: &'a Pat) -> Self::Result {
+                match &p.kind {
+                    // Base expression
+                    PatKind::Err(_) => self.emit_now(p.span, p.span, false),
+
+                    // Sub-patterns
+                    // FIXME: this doesn't work with recursive subpats (`&mut &mut <err>`)
+                    PatKind::Box(subpat) | PatKind::Ref(subpat, _)
+                        if matches!(subpat.kind, PatKind::Err(_)) =>
+                    {
+                        self.emit_now(subpat.span, p.span, false)
+                    }
+
+                    // Sub-expressions
+                    PatKind::Range(start, end, _) => {
+                        if let Some(start) = start {
+                            self.emit_now(start.span, start.span, true);
+                        }
+
+                        if let Some(end) = end {
+                            self.emit_now(end.span, end.span, true);
+                        }
+                    }
+
+                    // Walk continuation
+                    _ => walk_pat(self, p),
+                }
+            }
+        }
+
+        // Starts the visit.
+        PatVisitor { parser: self, stmt, arm: None, field: None }.visit_stmt(stmt);
     }
 
     /// Parses a pattern, with a setting whether modern range patterns (e.g., `a..=b`, `a..b` are
@@ -601,7 +785,11 @@ impl<'a> Parser<'a> {
 
                     match self.parse_range_end() {
                         Some(form) => self.parse_pat_range_begin_with(begin, form)?,
-                        None => PatKind::Lit(begin),
+                        None => match &begin.kind {
+                            // Avoid `PatKind::Lit(ExprKind::Err)`
+                            ExprKind::Err(guar) => PatKind::Err(*guar),
+                            _ => PatKind::Lit(begin),
+                        },
                     }
                 }
                 Err(err) => return self.fatal_unexpected_non_pat(err, expected),
@@ -784,7 +972,25 @@ impl<'a> Parser<'a> {
 
         Ok(match self.maybe_recover_trailing_expr(open_paren.to(self.prev_token.span), false) {
             None => pat,
-            Some((guar, _)) => PatKind::Err(guar),
+            Some((guar, _)) => {
+                // We just recovered a bigger expression, so cancel its children
+                // (e.g. `(1 + 2) * 3`, cancel “`1 + 2` is not a pattern”).
+                match pat {
+                    PatKind::Paren(pat) => {
+                        self.dcx().steal_err(pat.span, StashKey::ExprInPat, guar);
+                    }
+
+                    PatKind::Tuple(fields) => {
+                        for pat in fields {
+                            self.dcx().steal_err(pat.span, StashKey::ExprInPat, guar);
+                        }
+                    }
+
+                    _ => unreachable!("{pat:?}"),
+                }
+
+                PatKind::Err(guar)
+            }
         })
     }
 

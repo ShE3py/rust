@@ -3,30 +3,80 @@ error: expected a pattern, found an expression
    |
 LL |     let x.expect("foo");
    |         ^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to evaluate an expression
+   |
+LL -     let x.expect("foo");
+LL +     x.expect("foo");
+   |
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:7:9
+  --> $DIR/recover-pat-lets.rs:8:9
    |
 LL |     let x.unwrap(): u32;
    |         ^^^^^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to evaluate an expression
+   |
+LL -     let x.unwrap(): u32;
+LL +     x.unwrap();
+   |
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:10:9
+  --> $DIR/recover-pat-lets.rs:11:9
    |
 LL |     let x[0] = 1;
    |         ^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to do an assignment
+   |
+LL -     let x[0] = 1;
+LL +     x[0] = 1;
+   |
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:13:14
+  --> $DIR/recover-pat-lets.rs:14:14
    |
 LL |     let Some(1 + 1) = x else {
    |              ^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: extract the expression into a `const` and refer to it
+   |
+LL +     const VAL: _ = 1 + 1;
+LL ~     let Some(VAL) = x else {
+   |
+help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+   |
+LL |     let Some(const { 1 + 1 }) = x else {
+   |              +++++++       +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:17:17
+  --> $DIR/recover-pat-lets.rs:18:17
    |
 LL |     if let Some(1 + 1) = x {
    |                 ^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: extract the expression into a `const` and refer to it
+   |
+LL +     const VAL: _ = 1 + 1;
+LL ~     if let Some(VAL) = x {
+   |
+help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+   |
+LL |     if let Some(const { 1 + 1 }) = x {
+   |                 +++++++       +
 
-error: aborting due to 5 previous errors
+error[E0282]: type annotations needed
+  --> $DIR/recover-pat-lets.rs:4:9
+   |
+LL |     let x.expect("foo");
+   |         ^^^^^^^^^^^^^^^
+   |
+help: consider giving this pattern a type
+   |
+LL |     let x.expect("foo"): /* Type */;
+   |                        ++++++++++++
 
+error: aborting due to 6 previous errors
+
+For more information about this error, try `rustc --explain E0282`.

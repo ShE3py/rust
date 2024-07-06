@@ -3,12 +3,24 @@ error: expected a pattern range bound, found an expression
    |
 LL |     let 10 ..= 10 + 3 = 12;
    |                ^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to do an assignment
+   |
+LL -     let 10 ..= 10 + 3 = 12;
+LL +     10 ..= 10 + 3 = 12;
+   |
 
 error: expected a pattern range bound, found an expression
   --> $DIR/pat-ranges-3.rs:7:9
    |
 LL |     let 10 - 3 ..= 10 = 8;
    |         ^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to do an assignment
+   |
+LL -     let 10 - 3 ..= 10 = 8;
+LL +     10 - 3 ..= 10 = 8;
+   |
 
 error: aborting due to 2 previous errors
 

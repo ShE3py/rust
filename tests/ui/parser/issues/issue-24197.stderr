@@ -3,6 +3,12 @@ error: expected a pattern, found an expression
    |
 LL |     let buf[0] = 0;
    |         ^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to do an assignment
+   |
+LL -     let buf[0] = 0;
+LL +     buf[0] = 0;
+   |
 
 error: aborting due to 1 previous error
 

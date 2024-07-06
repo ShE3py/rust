@@ -791,6 +791,20 @@ parse_unexpected_expr_in_pat =
 
     .label = arbitrary expressions are not allowed in patterns
 
+parse_unexpected_expr_in_pat_const_sugg = extract the expression into a `const` and refer to it
+
+parse_unexpected_expr_in_pat_create_guard_sugg = check the value in an arm guard
+
+parse_unexpected_expr_in_pat_inline_const_sugg = wrap the expression in a inline const (requires `{"#"}![feature(inline_const_pat)]`)
+
+parse_unexpected_expr_in_pat_remove_let_sugg =
+    remove the `let` if you meant to {$has_initializer ->
+        [true] do an assignment
+       *[false] evaluate an expression
+    }
+
+parse_unexpected_expr_in_pat_update_guard_sugg = check the value in the arm guard
+
 parse_unexpected_if_with_if = unexpected `if` in the condition expression
     .suggestion = remove the `if`
 

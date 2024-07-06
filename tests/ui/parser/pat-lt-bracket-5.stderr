@@ -3,6 +3,12 @@ error: expected a pattern, found an expression
    |
 LL |     let v[0] = v[1];
    |         ^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: remove the `let` if you meant to do an assignment
+   |
+LL -     let v[0] = v[1];
+LL +     v[0] = v[1];
+   |
 
 error[E0425]: cannot find value `v` in this scope
   --> $DIR/pat-lt-bracket-5.rs:2:16
