@@ -6,8 +6,8 @@ LL |         x.y => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x.y) => (),
-   |         ~~~ +++++++++++++++
+LL |         val if val == x.y => (),
+   |         ~~~ +++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x.y;
@@ -28,8 +28,8 @@ LL |         x.0 => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x.0) => (),
-   |         ~~~ +++++++++++++++
+LL |         val if val == x.0 => (),
+   |         ~~~ +++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x.0;
@@ -51,8 +51,8 @@ LL |         x._0 => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x._0) => (),
-   |         ~~~ ++++++++++++++++
+LL |         val if val == x._0 => (),
+   |         ~~~ ++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x._0;
@@ -75,8 +75,8 @@ LL |         x.0.1 => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x.0.1) => (),
-   |         ~~~ +++++++++++++++++
+LL |         val if val == x.0.1 => (),
+   |         ~~~ +++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x.0.1;
@@ -99,8 +99,8 @@ LL |         x.4.y.17.__z => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x.4.y.17.__z) => (),
-   |         ~~~ ++++++++++++++++++++++++
+LL |         val if val == x.4.y.17.__z => (),
+   |         ~~~ ++++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x.4.y.17.__z;
@@ -153,8 +153,8 @@ LL |         x[0] => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x[0]) => (),
-   |         ~~~ ++++++++++++++++
+LL |         val if val == x[0] => (),
+   |         ~~~ ++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x[0];
@@ -174,8 +174,8 @@ LL |         x[..] => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x[..]) => (),
-   |         ~~~ +++++++++++++++++
+LL |         val if val == x[..] => (),
+   |         ~~~ +++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x[..];
@@ -223,8 +223,8 @@ LL |         x.f() => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x.f()) => (),
-   |         ~~~ +++++++++++++++++
+LL |         val if val == x.f() => (),
+   |         ~~~ +++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x.f();
@@ -244,8 +244,8 @@ LL |         x._f() => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x._f()) => (),
-   |         ~~~ ++++++++++++++++++
+LL |         val if val == x._f() => (),
+   |         ~~~ ++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x._f();
@@ -266,8 +266,8 @@ LL |         x? => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x?) => (),
-   |         ~~~ ++++++++++++++
+LL |         val if val == x? => (),
+   |         ~~~ ++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x?;
@@ -289,8 +289,8 @@ LL |         ().f() => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (().f()) => (),
-   |         ~~~ ++++++++++++++++++
+LL |         val if val == ().f() => (),
+   |         ~~~ ++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = ().f();
@@ -313,8 +313,8 @@ LL |         (0, x)?.f() => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == ((0, x)?.f()) => (),
-   |         ~~~ +++++++++++++++++++++++
+LL |         val if val == (0, x)?.f() => (),
+   |         ~~~ +++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = (0, x)?.f();
@@ -337,8 +337,8 @@ LL |         x.f().g() => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x.f().g()) => (),
-   |         ~~~ +++++++++++++++++++++
+LL |         val if val == x.f().g() => (),
+   |         ~~~ +++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x.f().g();
@@ -361,8 +361,8 @@ LL |         0.f()?.g()?? => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (0.f()?.g()??) => (),
-   |         ~~~ ++++++++++++++++++++++++
+LL |         val if val == 0.f()?.g()?? => (),
+   |         ~~~ ++++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = 0.f()?.g()??;
@@ -385,8 +385,8 @@ LL |         x as usize => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x as usize) => (),
-   |         ~~~ ++++++++++++++++++++++
+LL |         val if val == x as usize => (),
+   |         ~~~ ++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x as usize;
@@ -406,8 +406,8 @@ LL |         0 as usize => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (0 as usize) => (),
-   |         ~~~ ++++++++++++++++++++++
+LL |         val if val == 0 as usize => (),
+   |         ~~~ ++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = 0 as usize;
@@ -428,8 +428,8 @@ LL |         x.f().0.4 as f32 => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (x.f().0.4 as f32) => (),
-   |         ~~~ ++++++++++++++++++++++++++++
+LL |         val if val == x.f().0.4 as f32 => (),
+   |         ~~~ ++++++++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = x.f().0.4 as f32;
@@ -451,8 +451,8 @@ LL |         1 + 1 => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (1 + 1) => (),
-   |         ~~~ +++++++++++++++++
+LL |         val if val == 1 + 1 => (),
+   |         ~~~ +++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = 1 + 1;
@@ -472,8 +472,8 @@ LL |         (1 + 2) * 3 => (),
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == ((1 + 2) * 3) => (),
-   |         ~~~ +++++++++++++++++++++++
+LL |         val if val == (1 + 2) * 3 => (),
+   |         ~~~ +++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = (1 + 2) * 3;
@@ -486,8 +486,98 @@ help: consider wrapping the expression in an inline `const` (requires `#![featur
 LL |         const { (1 + 2) * 3 } => (),
    |         +++++++             +
 
+error: expected a pattern, found an expression
+  --> $DIR/recover-pat-exprs.rs:61:9
+   |
+LL |         x.0 > 2 => (),
+   |         ^^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: consider moving the expression to a match arm guard
+   |
+LL |         val if val == (x.0 > 2) => (),
+   |         ~~~ +++++++++++++++++++
+help: consider extracting the expression into a `const`
+   |
+LL +     const VAL: /* Type */ = x.0 > 2;
+LL ~     match 0 {
+LL |         1 + 1 => (),
+LL |         (1 + 2) * 3 => (),
+LL ~         VAL => (),
+   |
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
+   |
+LL |         const { x.0 > 2 } => (),
+   |         +++++++         +
+
+error: expected a pattern, found an expression
+  --> $DIR/recover-pat-exprs.rs:62:9
+   |
+LL |         x.0 == 2 => (),
+   |         ^^^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: consider moving the expression to a match arm guard
+   |
+LL |         val if val == (x.0 == 2) => (),
+   |         ~~~ ++++++++++++++++++++
+help: consider extracting the expression into a `const`
+   |
+LL +     const VAL: /* Type */ = x.0 == 2;
+LL ~     match 0 {
+LL |         1 + 1 => (),
+LL |         (1 + 2) * 3 => (),
+LL |         x.0 > 2 => (),
+LL ~         VAL => (),
+   |
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
+   |
+LL |         const { x.0 == 2 } => (),
+   |         +++++++          +
+
+error: expected a pattern, found an expression
+  --> $DIR/recover-pat-exprs.rs:67:13
+   |
+LL |         (x, y.0 > 2) if x != 0 => (),
+   |             ^^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: consider moving the expression to the match arm guard
+   |
+LL |         (x, val) if x != 0 && val == (y.0 > 2) => (),
+   |             ~~~            +++++++++++++++++++
+help: consider extracting the expression into a `const`
+   |
+LL +     const VAL: /* Type */ = y.0 > 2;
+LL ~     match (0, 0) {
+LL ~         (x, VAL) if x != 0 => (),
+   |
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
+   |
+LL |         (x, const { y.0 > 2 }) if x != 0 => (),
+   |             +++++++         +
+
+error: expected a pattern, found an expression
+  --> $DIR/recover-pat-exprs.rs:68:13
+   |
+LL |         (x, y.0 > 2) if x != 0 || x != 1 => (),
+   |             ^^^^^^^ arbitrary expressions are not allowed in patterns
+   |
+help: consider moving the expression to the match arm guard
+   |
+LL |         (x, val) if (x != 0 || x != 1) && val == (y.0 > 2) => (),
+   |             ~~~     +                +++++++++++++++++++++
+help: consider extracting the expression into a `const`
+   |
+LL +     const VAL: /* Type */ = y.0 > 2;
+LL ~     match (0, 0) {
+LL |         (x, y.0 > 2) if x != 0 => (),
+LL ~         (x, VAL) if x != 0 || x != 1 => (),
+   |
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
+   |
+LL |         (x, const { y.0 > 2 }) if x != 0 || x != 1 => (),
+   |             +++++++         +
+
 error: left-hand side of `@` must be a binding
-  --> $DIR/recover-pat-exprs.rs:73:9
+  --> $DIR/recover-pat-exprs.rs:81:9
    |
 LL |         x.sqrt() @ .. => (),
    |         --------^^^--
@@ -498,21 +588,21 @@ LL |         x.sqrt() @ .. => (),
    = note: bindings are `x`, `mut x`, `ref x`, and `ref mut x`
 
 error: expected one of `)`, `,`, or `|`, found `+`
-  --> $DIR/recover-pat-exprs.rs:87:12
+  --> $DIR/recover-pat-exprs.rs:95:12
    |
 LL |         (_ + 1) => (),
    |            ^ expected one of `)`, `,`, or `|`
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:71:9
+  --> $DIR/recover-pat-exprs.rs:79:9
    |
 LL |         u8::MAX.abs() => (),
    |         ^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (u8::MAX.abs()) => (),
-   |         ~~~ +++++++++++++++++++++++++
+LL |         val if val == u8::MAX.abs() => (),
+   |         ~~~ +++++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = u8::MAX.abs();
@@ -525,15 +615,15 @@ LL |         const { u8::MAX.abs() } => (),
    |         +++++++               +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:76:17
+  --> $DIR/recover-pat-exprs.rs:84:17
    |
 LL |         z @ w @ v.u() => (),
    |                 ^^^^^ arbitrary expressions are not allowed in patterns
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         z @ w @ val if val == (v.u()) => (),
-   |                 ~~~ +++++++++++++++++
+LL |         z @ w @ val if val == v.u() => (),
+   |                 ~~~ +++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = v.u();
@@ -549,15 +639,15 @@ LL |         z @ w @ const { v.u() } => (),
    |                 +++++++       +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:78:9
+  --> $DIR/recover-pat-exprs.rs:86:9
    |
 LL |         y.ilog(3) => (),
    |         ^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (y.ilog(3)) => (),
-   |         ~~~ +++++++++++++++++++++
+LL |         val if val == y.ilog(3) => (),
+   |         ~~~ +++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = y.ilog(3);
@@ -573,15 +663,15 @@ LL |         const { y.ilog(3) } => (),
    |         +++++++           +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:80:9
+  --> $DIR/recover-pat-exprs.rs:88:9
    |
 LL |         n + 1 => (),
    |         ^^^^^ arbitrary expressions are not allowed in patterns
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (n + 1) => (),
-   |         ~~~ +++++++++++++++++
+LL |         val if val == n + 1 => (),
+   |         ~~~ +++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = n + 1;
@@ -597,15 +687,15 @@ LL |         const { n + 1 } => (),
    |         +++++++       +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:82:10
+  --> $DIR/recover-pat-exprs.rs:90:10
    |
 LL |         ("".f() + 14 * 8) => (),
    |          ^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         (val) if val == ("".f() + 14 * 8) => (),
-   |          ~~~  +++++++++++++++++++++++++++
+LL |         (val) if val == "".f() + 14 * 8 => (),
+   |          ~~~  +++++++++++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = "".f() + 14 * 8;
@@ -621,15 +711,15 @@ LL |         (const { "".f() + 14 * 8 }) => (),
    |          +++++++                 +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:85:9
+  --> $DIR/recover-pat-exprs.rs:93:9
    |
 LL |         f?() => (),
    |         ^^^^ arbitrary expressions are not allowed in patterns
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (f?()) => (),
-   |         ~~~ ++++++++++++++++
+LL |         val if val == f?() => (),
+   |         ~~~ ++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = f?();
@@ -645,7 +735,7 @@ LL |         const { f?() } => (),
    |         +++++++      +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:91:9
+  --> $DIR/recover-pat-exprs.rs:99:9
    |
 LL |     let 1 + 1 = 2;
    |         ^^^^^ arbitrary expressions are not allowed in patterns
@@ -657,7 +747,7 @@ LL +     1 + 1 = 2;
    |
 
 error: expected one of `)`, `,`, `@`, or `|`, found `*`
-  --> $DIR/recover-pat-exprs.rs:94:28
+  --> $DIR/recover-pat-exprs.rs:102:28
    |
 LL |     let b = matches!(x, (x * x | x.f()) | x[0]);
    |                            ^ expected one of `)`, `,`, `@`, or `|`
@@ -666,16 +756,16 @@ LL |     let b = matches!(x, (x * x | x.f()) | x[0]);
    = note: while parsing argument for this `pat` macro fragment
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:65:5
+  --> $DIR/recover-pat-exprs.rs:73:5
    |
 LL |     1 + 2 * PI.cos() => 2,
    |     ^^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-exprs.rs:73:9
+  --> $DIR/recover-pat-exprs.rs:81:9
    |
 LL |         x.sqrt() @ .. => (),
    |         ^^^^^^^^ arbitrary expressions are not allowed in patterns
 
-error: aborting due to 40 previous errors
+error: aborting due to 44 previous errors
 

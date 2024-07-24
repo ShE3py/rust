@@ -6,8 +6,8 @@ LL |         tmp[0] => {}
    |
 help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (tmp[0]) => {}
-   |         ~~~ ++++++++++++++++++
+LL |         val if val == tmp[0] => {}
+   |         ~~~ ++++++++++++++++
 help: consider extracting the expression into a `const`
    |
 LL +     const VAL: /* Type */ = tmp[0];

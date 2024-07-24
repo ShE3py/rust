@@ -17,11 +17,12 @@ use rustc_ast::ptr::P;
 use rustc_ast::token::{self, BinOpToken, Delimiter, Token};
 use rustc_ast::visit::{walk_arm, walk_pat, walk_pat_field, Visitor};
 use rustc_ast::{
-    self as ast, Arm, AttrVec, BindingMode, ByRef, Expr, ExprKind, LocalKind, MacCall, Mutability,
-    Pat, PatField, PatFieldsRest, PatKind, Path, QSelf, RangeEnd, RangeSyntax, Stmt, StmtKind,
+    self as ast, Arm, AttrVec, BinOpKind, BindingMode, ByRef, Expr, ExprKind, ExprPrecedence,
+    LocalKind, MacCall, Mutability, Pat, PatField, PatFieldsRest, PatKind, Path, QSelf, RangeEnd,
+    RangeSyntax, Stmt, StmtKind,
 };
 use rustc_ast_pretty::pprust;
-use rustc_errors::{Applicability, Diag, PResult, StashKey};
+use rustc_errors::{Applicability, Diag, DiagArgValue, PResult, StashKey};
 use rustc_session::errors::ExprParenthesesNeeded;
 use rustc_span::source_map::{respan, Spanned};
 use rustc_span::symbol::{kw, sym, Ident};
@@ -453,7 +454,11 @@ impl<'a> Parser<'a> {
             self.dcx().stash_err(
                 span,
                 StashKey::ExprInPat,
-                UnexpectedExpressionInPattern { span, is_bound },
+                UnexpectedExpressionInPattern {
+                    span,
+                    is_bound,
+                    expr_precedence: expr.precedence().order(),
+                },
             ),
             span,
         ))
@@ -538,6 +543,20 @@ impl<'a> Parser<'a> {
                                 None => ("val".to_owned(), expr_span),
                             };
 
+                            // Are parentheses required around `expr`?
+                            let expr = match &err.args["expr_precedence"] {
+                                DiagArgValue::Number(expr_precedence) => {
+                                    if *expr_precedence
+                                        <= ExprPrecedence::Binary(BinOpKind::Eq).order() as i32
+                                    {
+                                        format!("({expr})")
+                                    } else {
+                                        format!("{expr}")
+                                    }
+                                }
+                                _ => unreachable!(),
+                            };
+
                             match &arm.guard {
                                 None => {
                                     err.subdiagnostic(
@@ -545,18 +564,27 @@ impl<'a> Parser<'a> {
                                             ident_span,
                                             pat_hi: arm.pat.span.shrink_to_hi(),
                                             ident,
-                                            expr: expr.clone(),
+                                            expr,
                                         },
                                     );
                                 }
                                 Some(guard) => {
+                                    // Are parentheses required around the old guard?
+                                    let wrap_guard = guard.precedence().order()
+                                        <= ExprPrecedence::Binary(BinOpKind::And).order();
+
                                     err.subdiagnostic(
                                         UnexpectedExpressionInPatternSugg::UpdateGuard {
                                             ident_span,
-                                            guard_lo: guard.span.shrink_to_lo(),
+                                            guard_lo: if wrap_guard {
+                                                Some(guard.span.shrink_to_lo())
+                                            } else {
+                                                None
+                                            },
                                             guard_hi: guard.span.shrink_to_hi(),
+                                            guard_hi_paren: if wrap_guard { ")" } else { "" },
                                             ident,
-                                            expr: expr.clone(),
+                                            expr,
                                         },
                                     );
                                 }

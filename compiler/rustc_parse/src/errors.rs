@@ -2596,11 +2596,14 @@ pub(crate) struct ExpectedCommaAfterPatternField {
 #[derive(Diagnostic)]
 #[diag(parse_unexpected_expr_in_pat)]
 pub(crate) struct UnexpectedExpressionInPattern {
+    // The unexpected expr's span.
     #[primary_span]
     #[label]
     pub span: Span,
     /// Was a `RangePatternBound` expected?
     pub is_bound: bool,
+    /// The unexpected expr's precedence (used in match arm guard suggestions).
+    pub expr_precedence: i8,
 }
 
 #[derive(Subdiagnostic)]
@@ -2630,12 +2633,11 @@ pub(crate) enum UnexpectedExpressionInPatternSugg {
         #[suggestion_part(code = "{ident}")]
         ident_span: Span,
         /// The end of the match arm's pattern.
-        // FIXME: only insert `()` if needed
-        #[suggestion_part(code = " if {ident} == ({expr})")]
+        #[suggestion_part(code = " if {ident} == {expr}")]
         pat_hi: Span,
         /// The suggested identifier.
         ident: String,
-        /// `ident_span`'s snippet.
+        /// `ident_span`'s snippet (with parentheses if needed).
         expr: String,
     },
 
@@ -2647,16 +2649,17 @@ pub(crate) enum UnexpectedExpressionInPatternSugg {
         /// The span of the `PatKind:Err` to be transformed into a `PatKind::Ident`.
         #[suggestion_part(code = "{ident}")]
         ident_span: Span,
-        /// The beginning of the match arm guard's expression.
+        /// The beginning of the match arm guard's expression (insert a `(` if `Some`).
         #[suggestion_part(code = "(")]
-        guard_lo: Span,
+        guard_lo: Option<Span>,
         /// The end of the match arm guard's expression.
-        // FIXME: only insert `()` if needed
-        #[suggestion_part(code = ") && {ident} == ({expr})")]
+        #[suggestion_part(code = "{guard_hi_paren} && {ident} == {expr}")]
         guard_hi: Span,
+        /// Either `")"` or `""`.
+        guard_hi_paren: &'static str,
         /// The suggested identifier.
         ident: String,
-        /// `ident_span`'s snippet.
+        /// `ident_span`'s snippet (with parentheses if needed).
         expr: String,
     },
 
