@@ -12,10 +12,10 @@ use crate::errors::{
 };
 use crate::parser::expr::{could_be_unclosed_char_literal, DestructuredFloat, LhsExpr};
 use crate::{maybe_recover_from_interpolated_ty_qpath, maybe_whole};
-use rustc_ast::mut_visit::{walk_pat, MutVisitor};
+use rustc_ast::mut_visit::{self, MutVisitor};
 use rustc_ast::ptr::P;
 use rustc_ast::token::{self, BinOpToken, Delimiter, Token};
-use rustc_ast::visit::{walk_arm, walk_pat, walk_pat_field, Visitor};
+use rustc_ast::visit::{self, Visitor};
 use rustc_ast::{
     self as ast, Arm, AttrVec, BinOpKind, BindingMode, ByRef, Expr, ExprKind, ExprPrecedence,
     LocalKind, MacCall, Mutability, Pat, PatField, PatFieldsRest, PatKind, Path, QSelf, RangeEnd,
@@ -620,13 +620,13 @@ impl<'a> Parser<'a> {
         impl<'a> Visitor<'a> for PatVisitor<'a> {
             fn visit_arm(&mut self, a: &'a Arm) -> Self::Result {
                 self.arm = Some(a);
-                walk_arm(self, a);
+                visit::walk_arm(self, a);
                 self.arm = None;
             }
 
             fn visit_pat_field(&mut self, fp: &'a PatField) -> Self::Result {
                 self.field = Some(fp);
-                walk_pat_field(self, fp);
+                visit::walk_pat_field(self, fp);
                 self.field = None;
             }
 
@@ -655,7 +655,7 @@ impl<'a> Parser<'a> {
                     }
 
                     // Walk continuation
-                    _ => walk_pat(self, p),
+                    _ => visit::walk_pat(self, p),
                 }
             }
         }
@@ -1073,7 +1073,7 @@ impl<'a> Parser<'a> {
                     self.0 = true;
                     *m = Mutability::Mut;
                 }
-                walk_pat(self, pat);
+                mut_visit::walk_pat(self, pat);
             }
         }
 
