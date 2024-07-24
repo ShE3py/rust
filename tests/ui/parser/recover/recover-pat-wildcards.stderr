@@ -77,13 +77,13 @@ error: expected a pattern range bound, found an expression
 LL |         4..=(2 + _) => ()
    |              ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 2 + _;
+LL +     const VAL: /* Type */ = 2 + _;
 LL ~     match 9 {
 LL ~         4..=(VAL) => ()
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         4..=(const { 2 + _ }) => ()
    |              +++++++       +

@@ -4,17 +4,17 @@ error: expected a pattern, found an expression
 LL |         Foo("hi".to_owned()) => true,
    |             ^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         Foo(val) if val == "hi".to_owned() => true,
-   |             ~~~  +++++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         Foo(val) if val == ("hi".to_owned()) => true,
+   |             ~~~  +++++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = "hi".to_owned();
+LL +     const VAL: /* Type */ = "hi".to_owned();
 LL ~     match foo {
 LL ~         Foo(VAL) => true,
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         Foo(const { "hi".to_owned() }) => true,
    |             +++++++                 +
@@ -25,17 +25,17 @@ error: expected a pattern, found an expression
 LL |         Bar { baz: "hi".to_owned() } => true,
    |                    ^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         Bar { baz } if baz == "hi".to_owned() => true,
-   |               ~~~   +++++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         Bar { baz } if baz == ("hi".to_owned()) => true,
+   |               ~~~   +++++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const BAZ: _ = "hi".to_owned();
+LL +     const BAZ: /* Type */ = "hi".to_owned();
 LL ~     match bar {
 LL ~         Bar { baz: BAZ } => true,
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         Bar { baz: const { "hi".to_owned() } } => true,
    |                    +++++++                 +
@@ -46,17 +46,17 @@ error: expected a pattern, found an expression
 LL |         &["foo".to_string()] => {}
    |           ^^^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         &[val] if val == "foo".to_string() => {}
-   |           ~~~  +++++++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         &[val] if val == ("foo".to_string()) => {}
+   |           ~~~  +++++++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = "foo".to_string();
+LL +     const VAL: /* Type */ = "foo".to_string();
 LL ~     match foo.as_slice() {
 LL ~         &[VAL] => {}
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         &[const { "foo".to_string() }] => {}
    |           +++++++                   +
@@ -67,12 +67,12 @@ error: expected a pattern, found an expression
 LL |     if let Some(MAGIC.0 as usize) = None::<usize> {}
    |                 ^^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = MAGIC.0 as usize;
+LL +     const VAL: /* Type */ = MAGIC.0 as usize;
 LL ~     if let Some(VAL) = None::<usize> {}
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |     if let Some(const { MAGIC.0 as usize }) = None::<usize> {}
    |                 +++++++                  +
@@ -83,12 +83,12 @@ error: expected a pattern, found an expression
 LL |     if let (-1.some(4)) = (0, Some(4)) {}
    |             ^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = -1.some(4);
+LL +     const VAL: /* Type */ = -1.some(4);
 LL ~     if let (VAL) = (0, Some(4)) {}
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |     if let (const { -1.some(4) }) = (0, Some(4)) {}
    |             +++++++            +
@@ -99,12 +99,12 @@ error: expected a pattern, found an expression
 LL |     if let (-1.Some(4)) = (0, Some(4)) {}
    |             ^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = -1.Some(4);
+LL +     const VAL: /* Type */ = -1.Some(4);
 LL ~     if let (VAL) = (0, Some(4)) {}
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |     if let (const { -1.Some(4) }) = (0, Some(4)) {}
    |             +++++++            +

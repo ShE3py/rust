@@ -2630,7 +2630,8 @@ pub(crate) enum UnexpectedExpressionInPatternSugg {
         #[suggestion_part(code = "{ident}")]
         ident_span: Span,
         /// The end of the match arm's pattern.
-        #[suggestion_part(code = " if {ident} == {expr}")]
+        // FIXME: only insert `()` if needed
+        #[suggestion_part(code = " if {ident} == ({expr})")]
         pat_hi: Span,
         /// The suggested identifier.
         ident: String,
@@ -2650,7 +2651,8 @@ pub(crate) enum UnexpectedExpressionInPatternSugg {
         #[suggestion_part(code = "(")]
         guard_lo: Span,
         /// The end of the match arm guard's expression.
-        #[suggestion_part(code = ") && {ident} == {expr}")]
+        // FIXME: only insert `()` if needed
+        #[suggestion_part(code = ") && {ident} == ({expr})")]
         guard_hi: Span,
         /// The suggested identifier.
         ident: String,
@@ -2664,7 +2666,7 @@ pub(crate) enum UnexpectedExpressionInPatternSugg {
     )]
     Const {
         /// The beginning of statement's line.
-        #[suggestion_part(code = "{indentation}const {ident}: _ = {expr};\n")]
+        #[suggestion_part(code = "{indentation}const {ident}: /* Type */ = {expr};\n")]
         stmt_lo: Span,
         /// The span of the `PatKind:Err` to be transformed into a `PatKind::Ident`.
         #[suggestion_part(code = "{ident}")]

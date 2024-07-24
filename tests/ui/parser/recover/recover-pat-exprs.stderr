@@ -4,18 +4,18 @@ error: expected a pattern, found an expression
 LL |         x.y => (),
    |         ^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x.y => (),
-   |         ~~~ +++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x.y) => (),
+   |         ~~~ +++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x.y;
+LL +     const VAL: /* Type */ = x.y;
 LL ~     match 0 {
 LL |         x => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x.y } => (),
    |         +++++++     +
@@ -26,19 +26,19 @@ error: expected a pattern, found an expression
 LL |         x.0 => (),
    |         ^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x.0 => (),
-   |         ~~~ +++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x.0) => (),
+   |         ~~~ +++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x.0;
+LL +     const VAL: /* Type */ = x.0;
 LL ~     match 0 {
 LL |         x => (),
 LL |         x.y => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x.0 } => (),
    |         +++++++     +
@@ -49,20 +49,20 @@ error: expected a pattern, found an expression
 LL |         x._0 => (),
    |         ^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x._0 => (),
-   |         ~~~ ++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x._0) => (),
+   |         ~~~ ++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x._0;
+LL +     const VAL: /* Type */ = x._0;
 LL ~     match 0 {
 LL |         x => (),
 LL |         x.y => (),
 LL |         x.0 => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x._0 } => (),
    |         +++++++      +
@@ -73,20 +73,20 @@ error: expected a pattern, found an expression
 LL |         x.0.1 => (),
    |         ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x.0.1 => (),
-   |         ~~~ +++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x.0.1) => (),
+   |         ~~~ +++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x.0.1;
+LL +     const VAL: /* Type */ = x.0.1;
 LL ~     match 0 {
 LL |         x => (),
 ...
 LL |         x._0 => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x.0.1 } => (),
    |         +++++++       +
@@ -97,20 +97,20 @@ error: expected a pattern, found an expression
 LL |         x.4.y.17.__z => (),
    |         ^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x.4.y.17.__z => (),
-   |         ~~~ ++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x.4.y.17.__z) => (),
+   |         ~~~ ++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x.4.y.17.__z;
+LL +     const VAL: /* Type */ = x.4.y.17.__z;
 LL ~     match 0 {
 LL |         x => (),
 ...
 LL |         x.0.1 => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x.4.y.17.__z } => (),
    |         +++++++              +
@@ -151,17 +151,17 @@ error: expected a pattern, found an expression
 LL |         x[0] => (),
    |         ^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x[0] => (),
-   |         ~~~ ++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x[0]) => (),
+   |         ~~~ ++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x[0];
+LL +     const VAL: /* Type */ = x[0];
 LL ~     match 0 {
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x[0] } => (),
    |         +++++++      +
@@ -172,18 +172,18 @@ error: expected a pattern, found an expression
 LL |         x[..] => (),
    |         ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x[..] => (),
-   |         ~~~ +++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x[..]) => (),
+   |         ~~~ +++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x[..];
+LL +     const VAL: /* Type */ = x[..];
 LL ~     match 0 {
 LL |         x[0] => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x[..] } => (),
    |         +++++++       +
@@ -221,17 +221,17 @@ error: expected a pattern, found an expression
 LL |         x.f() => (),
    |         ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x.f() => (),
-   |         ~~~ +++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x.f()) => (),
+   |         ~~~ +++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x.f();
+LL +     const VAL: /* Type */ = x.f();
 LL ~     match 0 {
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x.f() } => (),
    |         +++++++       +
@@ -242,18 +242,18 @@ error: expected a pattern, found an expression
 LL |         x._f() => (),
    |         ^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x._f() => (),
-   |         ~~~ ++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x._f()) => (),
+   |         ~~~ ++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x._f();
+LL +     const VAL: /* Type */ = x._f();
 LL ~     match 0 {
 LL |         x.f() => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x._f() } => (),
    |         +++++++        +
@@ -264,19 +264,19 @@ error: expected a pattern, found an expression
 LL |         x? => (),
    |         ^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x? => (),
-   |         ~~~ ++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x?) => (),
+   |         ~~~ ++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x?;
+LL +     const VAL: /* Type */ = x?;
 LL ~     match 0 {
 LL |         x.f() => (),
 LL |         x._f() => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x? } => (),
    |         +++++++    +
@@ -287,20 +287,20 @@ error: expected a pattern, found an expression
 LL |         ().f() => (),
    |         ^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == ().f() => (),
-   |         ~~~ ++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (().f()) => (),
+   |         ~~~ ++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = ().f();
+LL +     const VAL: /* Type */ = ().f();
 LL ~     match 0 {
 LL |         x.f() => (),
 LL |         x._f() => (),
 LL |         x? => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { ().f() } => (),
    |         +++++++        +
@@ -311,20 +311,20 @@ error: expected a pattern, found an expression
 LL |         (0, x)?.f() => (),
    |         ^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (0, x)?.f() => (),
-   |         ~~~ +++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == ((0, x)?.f()) => (),
+   |         ~~~ +++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = (0, x)?.f();
+LL +     const VAL: /* Type */ = (0, x)?.f();
 LL ~     match 0 {
 LL |         x.f() => (),
 ...
 LL |         ().f() => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { (0, x)?.f() } => (),
    |         +++++++             +
@@ -335,20 +335,20 @@ error: expected a pattern, found an expression
 LL |         x.f().g() => (),
    |         ^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x.f().g() => (),
-   |         ~~~ +++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x.f().g()) => (),
+   |         ~~~ +++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x.f().g();
+LL +     const VAL: /* Type */ = x.f().g();
 LL ~     match 0 {
 LL |         x.f() => (),
 ...
 LL |         (0, x)?.f() => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x.f().g() } => (),
    |         +++++++           +
@@ -359,20 +359,20 @@ error: expected a pattern, found an expression
 LL |         0.f()?.g()?? => (),
    |         ^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == 0.f()?.g()?? => (),
-   |         ~~~ ++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (0.f()?.g()??) => (),
+   |         ~~~ ++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 0.f()?.g()??;
+LL +     const VAL: /* Type */ = 0.f()?.g()??;
 LL ~     match 0 {
 LL |         x.f() => (),
 ...
 LL |         x.f().g() => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { 0.f()?.g()?? } => (),
    |         +++++++              +
@@ -383,17 +383,17 @@ error: expected a pattern, found an expression
 LL |         x as usize => (),
    |         ^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x as usize => (),
-   |         ~~~ ++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x as usize) => (),
+   |         ~~~ ++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x as usize;
+LL +     const VAL: /* Type */ = x as usize;
 LL ~     match 0 {
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x as usize } => (),
    |         +++++++            +
@@ -404,18 +404,18 @@ error: expected a pattern, found an expression
 LL |         0 as usize => (),
    |         ^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == 0 as usize => (),
-   |         ~~~ ++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (0 as usize) => (),
+   |         ~~~ ++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 0 as usize;
+LL +     const VAL: /* Type */ = 0 as usize;
 LL ~     match 0 {
 LL |         x as usize => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { 0 as usize } => (),
    |         +++++++            +
@@ -426,19 +426,19 @@ error: expected a pattern, found an expression
 LL |         x.f().0.4 as f32 => (),
    |         ^^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == x.f().0.4 as f32 => (),
-   |         ~~~ ++++++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (x.f().0.4 as f32) => (),
+   |         ~~~ ++++++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = x.f().0.4 as f32;
+LL +     const VAL: /* Type */ = x.f().0.4 as f32;
 LL ~     match 0 {
 LL |         x as usize => (),
 LL |         0 as usize => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { x.f().0.4 as f32 } => (),
    |         +++++++                  +
@@ -449,17 +449,17 @@ error: expected a pattern, found an expression
 LL |         1 + 1 => (),
    |         ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == 1 + 1 => (),
-   |         ~~~ +++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (1 + 1) => (),
+   |         ~~~ +++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 1 + 1;
+LL +     const VAL: /* Type */ = 1 + 1;
 LL ~     match 0 {
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { 1 + 1 } => (),
    |         +++++++       +
@@ -470,18 +470,18 @@ error: expected a pattern, found an expression
 LL |         (1 + 2) * 3 => (),
    |         ^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == (1 + 2) * 3 => (),
-   |         ~~~ +++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == ((1 + 2) * 3) => (),
+   |         ~~~ +++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = (1 + 2) * 3;
+LL +     const VAL: /* Type */ = (1 + 2) * 3;
 LL ~     match 0 {
 LL |         1 + 1 => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { (1 + 2) * 3 } => (),
    |         +++++++             +
@@ -509,17 +509,17 @@ error: expected a pattern, found an expression
 LL |         u8::MAX.abs() => (),
    |         ^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == u8::MAX.abs() => (),
-   |         ~~~ +++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (u8::MAX.abs()) => (),
+   |         ~~~ +++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = u8::MAX.abs();
+LL +     const VAL: /* Type */ = u8::MAX.abs();
 LL ~     match u8::MAX {
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { u8::MAX.abs() } => (),
    |         +++++++               +
@@ -530,20 +530,20 @@ error: expected a pattern, found an expression
 LL |         z @ w @ v.u() => (),
    |                 ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         z @ w @ val if val == v.u() => (),
-   |                 ~~~ +++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         z @ w @ val if val == (v.u()) => (),
+   |                 ~~~ +++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = v.u();
+LL +     const VAL: /* Type */ = v.u();
 LL ~     match u8::MAX {
 LL |         u8::MAX.abs() => (),
 ...
 LL |
 LL ~         z @ w @ VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         z @ w @ const { v.u() } => (),
    |                 +++++++       +
@@ -554,20 +554,20 @@ error: expected a pattern, found an expression
 LL |         y.ilog(3) => (),
    |         ^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == y.ilog(3) => (),
-   |         ~~~ +++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (y.ilog(3)) => (),
+   |         ~~~ +++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = y.ilog(3);
+LL +     const VAL: /* Type */ = y.ilog(3);
 LL ~     match u8::MAX {
 LL |         u8::MAX.abs() => (),
 ...
 LL |
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { y.ilog(3) } => (),
    |         +++++++           +
@@ -578,20 +578,20 @@ error: expected a pattern, found an expression
 LL |         n + 1 => (),
    |         ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == n + 1 => (),
-   |         ~~~ +++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (n + 1) => (),
+   |         ~~~ +++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = n + 1;
+LL +     const VAL: /* Type */ = n + 1;
 LL ~     match u8::MAX {
 LL |         u8::MAX.abs() => (),
 ...
 LL |
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { n + 1 } => (),
    |         +++++++       +
@@ -602,20 +602,20 @@ error: expected a pattern, found an expression
 LL |         ("".f() + 14 * 8) => (),
    |          ^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         (val) if val == "".f() + 14 * 8 => (),
-   |          ~~~  +++++++++++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         (val) if val == ("".f() + 14 * 8) => (),
+   |          ~~~  +++++++++++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = "".f() + 14 * 8;
+LL +     const VAL: /* Type */ = "".f() + 14 * 8;
 LL ~     match u8::MAX {
 LL |         u8::MAX.abs() => (),
 ...
 LL |
 LL ~         (VAL) => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         (const { "".f() + 14 * 8 }) => (),
    |          +++++++                 +
@@ -626,20 +626,20 @@ error: expected a pattern, found an expression
 LL |         f?() => (),
    |         ^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == f?() => (),
-   |         ~~~ ++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (f?()) => (),
+   |         ~~~ ++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = f?();
+LL +     const VAL: /* Type */ = f?();
 LL ~     match u8::MAX {
 LL |         u8::MAX.abs() => (),
 ...
 LL |         0 | ((1) | 2) | 3 => (),
 LL ~         VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { f?() } => (),
    |         +++++++      +

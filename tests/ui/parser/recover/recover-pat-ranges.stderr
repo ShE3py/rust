@@ -88,16 +88,16 @@ error: expected a pattern range bound, found an expression
 LL |         ..=1 + 2 => (),
    |            ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 1 + 2;
+LL +     const VAL: /* Type */ = 1 + 2;
 LL ~     match -1 {
 LL |         0..=1 => (),
 ...
 LL |
 LL ~         ..=VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         ..=const { 1 + 2 } => (),
    |            +++++++       +
@@ -108,16 +108,16 @@ error: expected a pattern range bound, found an expression
 LL |         (-4 + 0).. => (),
    |          ^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = -4 + 0;
+LL +     const VAL: /* Type */ = -4 + 0;
 LL ~     match -1 {
 LL |         0..=1 => (),
 ...
 LL |
 LL ~         (VAL).. => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         (const { -4 + 0 }).. => (),
    |          +++++++        +
@@ -128,16 +128,16 @@ error: expected a pattern range bound, found an expression
 LL |         (1 + 4)...1 * 2 => (),
    |          ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 1 + 4;
+LL +     const VAL: /* Type */ = 1 + 4;
 LL ~     match -1 {
 LL |         0..=1 => (),
 ...
 LL |
 LL ~         (VAL)...1 * 2 => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         (const { 1 + 4 })...1 * 2 => (),
    |          +++++++       +
@@ -148,16 +148,16 @@ error: expected a pattern range bound, found an expression
 LL |         (1 + 4)...1 * 2 => (),
    |                   ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 1 * 2;
+LL +     const VAL: /* Type */ = 1 * 2;
 LL ~     match -1 {
 LL |         0..=1 => (),
 ...
 LL |
 LL ~         (1 + 4)...VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         (1 + 4)...const { 1 * 2 } => (),
    |                   +++++++       +
@@ -168,16 +168,16 @@ error: expected a pattern range bound, found an expression
 LL |         0.x()..="y".z() => (),
    |         ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 0.x();
+LL +     const VAL: /* Type */ = 0.x();
 LL ~     match -1 {
 LL |         0..=1 => (),
 ...
 LL |
 LL ~         VAL..="y".z() => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { 0.x() }..="y".z() => (),
    |         +++++++       +
@@ -188,16 +188,16 @@ error: expected a pattern range bound, found an expression
 LL |         0.x()..="y".z() => (),
    |                 ^^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = "y".z();
+LL +     const VAL: /* Type */ = "y".z();
 LL ~     match -1 {
 LL |         0..=1 => (),
 ...
 LL |
 LL ~         0.x()..=VAL => (),
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         0.x()..=const { "y".z() } => (),
    |                 +++++++         +

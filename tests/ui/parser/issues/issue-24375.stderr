@@ -4,17 +4,17 @@ error: expected a pattern, found an expression
 LL |         tmp[0] => {}
    |         ^^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: check the value in an arm guard
+help: consider moving the expression to a match arm guard
    |
-LL |         val if val == tmp[0] => {}
-   |         ~~~ ++++++++++++++++
-help: extract the expression into a `const` and refer to it
+LL |         val if val == (tmp[0]) => {}
+   |         ~~~ ++++++++++++++++++
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = tmp[0];
+LL +     const VAL: /* Type */ = tmp[0];
 LL ~     match z {
 LL ~         VAL => {}
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |         const { tmp[0] } => {}
    |         +++++++        +

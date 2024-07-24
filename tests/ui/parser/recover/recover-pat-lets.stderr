@@ -40,12 +40,12 @@ error: expected a pattern, found an expression
 LL |     let Some(1 + 1) = x else {
    |              ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 1 + 1;
+LL +     const VAL: /* Type */ = 1 + 1;
 LL ~     let Some(VAL) = x else {
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |     let Some(const { 1 + 1 }) = x else {
    |              +++++++       +
@@ -56,12 +56,12 @@ error: expected a pattern, found an expression
 LL |     if let Some(1 + 1) = x {
    |                 ^^^^^ arbitrary expressions are not allowed in patterns
    |
-help: extract the expression into a `const` and refer to it
+help: consider extracting the expression into a `const`
    |
-LL +     const VAL: _ = 1 + 1;
+LL +     const VAL: /* Type */ = 1 + 1;
 LL ~     if let Some(VAL) = x {
    |
-help: wrap the expression in a inline const (requires `#![feature(inline_const_pat)]`)
+help: consider wrapping the expression in an inline `const` (requires `#![feature(inline_const_pat)]`)
    |
 LL |     if let Some(const { 1 + 1 }) = x {
    |                 +++++++       +
