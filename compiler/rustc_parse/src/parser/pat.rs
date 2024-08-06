@@ -997,12 +997,16 @@ impl<'a> Parser<'a> {
                 // (e.g. `(1 + 2) * 3`, cancel “`1 + 2` is not a pattern”).
                 match pat {
                     PatKind::Paren(pat) => {
-                        self.dcx().steal_err(pat.span, StashKey::ExprInPat, guar);
+                        self.dcx().try_steal_and_replace_err(pat.span, StashKey::ExprInPat, guar);
                     }
 
                     PatKind::Tuple(fields) => {
                         for pat in fields {
-                            self.dcx().steal_err(pat.span, StashKey::ExprInPat, guar);
+                            self.dcx().try_steal_and_replace_err(
+                                pat.span,
+                                StashKey::ExprInPat,
+                                guar,
+                            );
                         }
                     }
 
