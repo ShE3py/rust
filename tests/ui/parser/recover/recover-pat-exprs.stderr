@@ -739,12 +739,6 @@ error: expected a pattern, found an expression
    |
 LL |     let 1 + 1 = 2;
    |         ^^^^^ arbitrary expressions are not allowed in patterns
-   |
-help: remove the `let` if you meant to do an assignment
-   |
-LL -     let 1 + 1 = 2;
-LL +     1 + 1 = 2;
-   |
 
 error: expected one of `)`, `,`, `@`, or `|`, found `*`
   --> $DIR/recover-pat-exprs.rs:102:28

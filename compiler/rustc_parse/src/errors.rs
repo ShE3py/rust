@@ -2609,22 +2609,6 @@ pub(crate) struct UnexpectedExpressionInPattern {
 #[derive(Subdiagnostic)]
 pub(crate) enum UnexpectedExpressionInPatternSugg {
     #[multipart_suggestion(
-        parse_unexpected_expr_in_pat_remove_let_sugg,
-        applicability = "maybe-incorrect",
-        style = "verbose"
-    )]
-    RemoveLet {
-        /// The span of the `let` keyword.
-        #[suggestion_part(code = "")]
-        let_span: Span,
-        /// The span of the type annotation.
-        #[suggestion_part(code = "")]
-        ty_span: Option<Span>,
-        /// `true` iff the `let` statement has an initializer.
-        has_initializer: bool,
-    },
-
-    #[multipart_suggestion(
         parse_unexpected_expr_in_pat_create_guard_sugg,
         applicability = "maybe-incorrect"
     )]

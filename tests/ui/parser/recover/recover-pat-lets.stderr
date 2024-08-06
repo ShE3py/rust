@@ -3,36 +3,18 @@ error: expected a pattern, found an expression
    |
 LL |     let x.expect("foo");
    |         ^^^^^^^^^^^^^^^ arbitrary expressions are not allowed in patterns
-   |
-help: remove the `let` if you meant to evaluate an expression
-   |
-LL -     let x.expect("foo");
-LL +     x.expect("foo");
-   |
 
 error: expected a pattern, found an expression
   --> $DIR/recover-pat-lets.rs:7:9
    |
 LL |     let x.unwrap(): u32;
    |         ^^^^^^^^^^ arbitrary expressions are not allowed in patterns
-   |
-help: remove the `let` if you meant to evaluate an expression
-   |
-LL -     let x.unwrap(): u32;
-LL +     x.unwrap();
-   |
 
 error: expected a pattern, found an expression
   --> $DIR/recover-pat-lets.rs:10:9
    |
 LL |     let x[0] = 1;
    |         ^^^^ arbitrary expressions are not allowed in patterns
-   |
-help: remove the `let` if you meant to do an assignment
-   |
-LL -     let x[0] = 1;
-LL +     x[0] = 1;
-   |
 
 error: expected a pattern, found an expression
   --> $DIR/recover-pat-lets.rs:13:14

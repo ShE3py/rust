@@ -509,22 +509,8 @@ impl<'a> Parser<'a> {
 
                         if let StmtKind::Let(local) = &stmt.kind {
                             match &local.kind {
-                                // help: remove the `let`
                                 LocalKind::Decl | LocalKind::Init(_) => {
-                                    err.subdiagnostic(
-                                        UnexpectedExpressionInPatternSugg::RemoveLet {
-                                            let_span: local
-                                                .span
-                                                .shrink_to_lo()
-                                                .until(local.pat.span),
-                                            ty_span: local
-                                                .colon_sp
-                                                .map(|sp| sp.to(local.ty.as_ref().unwrap().span)),
-                                            has_initializer: !matches!(local.kind, LocalKind::Decl),
-                                        },
-                                    );
-
-                                    // don't suggest `let const { pat } = expr;`
+                                    // It's kinda hard to guess what the user intended, so don't make suggestions.
                                     return;
                                 }
 
