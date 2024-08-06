@@ -11,7 +11,7 @@ LL +     x.expect("foo");
    |
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:8:9
+  --> $DIR/recover-pat-lets.rs:7:9
    |
 LL |     let x.unwrap(): u32;
    |         ^^^^^^^^^^ arbitrary expressions are not allowed in patterns
@@ -23,7 +23,7 @@ LL +     x.unwrap();
    |
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:11:9
+  --> $DIR/recover-pat-lets.rs:10:9
    |
 LL |     let x[0] = 1;
    |         ^^^^ arbitrary expressions are not allowed in patterns
@@ -35,7 +35,7 @@ LL +     x[0] = 1;
    |
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:14:14
+  --> $DIR/recover-pat-lets.rs:13:14
    |
 LL |     let Some(1 + 1) = x else {
    |              ^^^^^ arbitrary expressions are not allowed in patterns
@@ -51,7 +51,7 @@ LL |     let Some(const { 1 + 1 }) = x else {
    |              +++++++       +
 
 error: expected a pattern, found an expression
-  --> $DIR/recover-pat-lets.rs:18:17
+  --> $DIR/recover-pat-lets.rs:17:17
    |
 LL |     if let Some(1 + 1) = x {
    |                 ^^^^^ arbitrary expressions are not allowed in patterns
@@ -66,17 +66,5 @@ help: consider wrapping the expression in an inline `const` (requires `#![featur
 LL |     if let Some(const { 1 + 1 }) = x {
    |                 +++++++       +
 
-error[E0282]: type annotations needed
-  --> $DIR/recover-pat-lets.rs:4:9
-   |
-LL |     let x.expect("foo");
-   |         ^^^^^^^^^^^^^^^
-   |
-help: consider giving this pattern a type
-   |
-LL |     let x.expect("foo"): /* Type */;
-   |                        ++++++++++++
+error: aborting due to 5 previous errors
 
-error: aborting due to 6 previous errors
-
-For more information about this error, try `rustc --explain E0282`.

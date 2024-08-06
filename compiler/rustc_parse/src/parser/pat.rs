@@ -633,12 +633,12 @@ impl<'a> Parser<'a> {
             fn visit_pat(&mut self, p: &'a Pat) -> Self::Result {
                 match &p.kind {
                     // Base expression
-                    PatKind::Err(_) => self.emit_now(p.span, p.span, false),
+                    PatKind::Err(_) | PatKind::Lit(_) => self.emit_now(p.span, p.span, false),
 
                     // Sub-patterns
                     // FIXME: this doesn't work with recursive subpats (`&mut &mut <err>`)
                     PatKind::Box(subpat) | PatKind::Ref(subpat, _)
-                        if matches!(subpat.kind, PatKind::Err(_)) =>
+                        if matches!(subpat.kind, PatKind::Err(_) | PatKind::Lit(_)) =>
                     {
                         self.emit_now(subpat.span, p.span, false)
                     }
@@ -813,11 +813,7 @@ impl<'a> Parser<'a> {
 
                     match self.parse_range_end() {
                         Some(form) => self.parse_pat_range_begin_with(begin, form)?,
-                        None => match &begin.kind {
-                            // Avoid `PatKind::Lit(ExprKind::Err)`
-                            ExprKind::Err(guar) => PatKind::Err(*guar),
-                            _ => PatKind::Lit(begin),
-                        },
+                        None => PatKind::Lit(begin),
                     }
                 }
                 Err(err) => return self.fatal_unexpected_non_pat(err, expected),

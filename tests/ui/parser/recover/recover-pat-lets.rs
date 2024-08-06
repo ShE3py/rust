@@ -3,7 +3,6 @@ fn main() {
 
     let x.expect("foo");
     //~^ error: expected a pattern, found an expression
-    //~| error: type annotations needed
 
     let x.unwrap(): u32;
     //~^ error: expected a pattern, found an expression
