@@ -498,14 +498,17 @@ impl<'a> Parser<'a> {
                     stash_span,
                     StashKey::ExprInPat,
                     |err| {
+                        // Includes pre-pats (e.g. `&mut <err>`) in the diagnostic.
+                        err.span.replace(stash_span, expr_span);
+
                         let sm = self.parser.psess.source_map();
                         let stmt = self.stmt;
                         let line_lo = sm.span_extend_to_line(stmt.span).shrink_to_lo();
                         let indentation = sm.indentation_before(stmt.span).unwrap_or_default();
-                        let expr = self.parser.span_to_snippet(expr_span).unwrap();
-
-                        // Includes pre-pats (e.g. `&mut <err>`) in the diagnostic.
-                        err.span.replace(stash_span, expr_span);
+                        let Ok(expr) = self.parser.span_to_snippet(expr_span) else {
+                            // FIXME: some suggestions don't actually need the snippet; see PR #123877's unresolved conversations.
+                            return;
+                        };
 
                         if let StmtKind::Let(local) = &stmt.kind {
                             match &local.kind {
