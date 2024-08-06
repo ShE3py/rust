@@ -466,7 +466,7 @@ impl<'a> Parser<'a> {
 
     /// Called by [`Parser::parse_stmt_without_recovery`], used to add statement-aware subdiagnostics to the errors stashed
     /// by [`Parser::maybe_recover_trailing_expr`].
-    pub(super) fn maybe_emit_stashed_expr_in_pats(&mut self, stmt: &Stmt) {
+    pub(super) fn maybe_augment_stashed_expr_in_pats_with_suggestions(&mut self, stmt: &Stmt) {
         if self.dcx().has_errors().is_none() {
             // No need to walk the statement if there's no stashed errors.
             return;
@@ -493,7 +493,12 @@ impl<'a> Parser<'a> {
             /// `expr_span`
             /// ```
             /// `is_range_bound` is used to exclude arm guard suggestions in range pattern bounds.
-            fn emit_now(&self, stash_span: Span, expr_span: Span, is_range_bound: bool) {
+            fn maybe_add_suggestions_then_emit(
+                &self,
+                stash_span: Span,
+                expr_span: Span,
+                is_range_bound: bool,
+            ) {
                 self.parser.dcx().try_steal_modify_and_emit_err(
                     stash_span,
                     StashKey::ExprInPat,
@@ -622,24 +627,26 @@ impl<'a> Parser<'a> {
             fn visit_pat(&mut self, p: &'a Pat) -> Self::Result {
                 match &p.kind {
                     // Base expression
-                    PatKind::Err(_) | PatKind::Lit(_) => self.emit_now(p.span, p.span, false),
+                    PatKind::Err(_) | PatKind::Lit(_) => {
+                        self.maybe_add_suggestions_then_emit(p.span, p.span, false)
+                    }
 
                     // Sub-patterns
                     // FIXME: this doesn't work with recursive subpats (`&mut &mut <err>`)
                     PatKind::Box(subpat) | PatKind::Ref(subpat, _)
                         if matches!(subpat.kind, PatKind::Err(_) | PatKind::Lit(_)) =>
                     {
-                        self.emit_now(subpat.span, p.span, false)
+                        self.maybe_add_suggestions_then_emit(subpat.span, p.span, false)
                     }
 
                     // Sub-expressions
                     PatKind::Range(start, end, _) => {
                         if let Some(start) = start {
-                            self.emit_now(start.span, start.span, true);
+                            self.maybe_add_suggestions_then_emit(start.span, start.span, true);
                         }
 
                         if let Some(end) = end {
-                            self.emit_now(end.span, end.span, true);
+                            self.maybe_add_suggestions_then_emit(end.span, end.span, true);
                         }
                     }
 

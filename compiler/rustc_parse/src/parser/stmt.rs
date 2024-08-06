@@ -148,7 +148,7 @@ impl<'a> Parser<'a> {
             return Ok(None);
         };
 
-        self.maybe_emit_stashed_expr_in_pats(&stmt);
+        self.maybe_augment_stashed_expr_in_pats_with_suggestions(&stmt);
         Ok(Some(stmt))
     }
 
