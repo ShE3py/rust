@@ -669,10 +669,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             tcx.is_diagnostic_item(sym::write_macro, def_id)
                 || tcx.is_diagnostic_item(sym::writeln_macro, def_id)
         }) && item_name.name == sym::write_fmt;
+
         let mut err = if is_write && let SelfSource::MethodCall(rcvr_expr) = source {
             self.suggest_missing_writer(rcvr_ty, rcvr_expr)
         } else {
-            let mut err = self.dcx().create_err(NoAssociatedItem {
+            self.dcx().create_err(NoAssociatedItem {
                 span,
                 item_kind,
                 item_name,
@@ -684,43 +685,42 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 },
                 ty_str: ty_str_reported.clone(),
                 trait_missing_method,
-            });
-
-            if is_method {
-                self.suggest_use_shadowed_binding_with_method(
-                    source,
-                    item_name,
-                    &ty_str_reported,
-                    &mut err,
-                );
-            }
-
-            // Check if we wrote `Self::Assoc(1)` as if it were a tuple ctor.
-            if let SelfSource::QPath(ty) = source
-                && let hir::TyKind::Path(hir::QPath::Resolved(_, path)) = ty.kind
-                && let Res::SelfTyAlias { alias_to: impl_def_id, .. } = path.res
-                && let DefKind::Impl { .. } = self.tcx.def_kind(impl_def_id)
-                && let Some(candidate) = tcx.associated_items(impl_def_id).find_by_name_and_kind(
-                    self.tcx,
-                    item_name,
-                    ty::AssocKind::Type,
-                    impl_def_id,
-                )
-                && let Some(adt_def) = tcx.type_of(candidate.def_id).skip_binder().ty_adt_def()
-                && adt_def.is_struct()
-                && adt_def.non_enum_variant().ctor_kind() == Some(CtorKind::Fn)
-            {
-                let def_path = tcx.def_path_str(adt_def.did());
-                err.span_suggestion(
-                    ty.span.to(item_name.span),
-                    format!("to construct a value of type `{}`, use the explicit path", def_path),
-                    def_path,
-                    Applicability::MachineApplicable,
-                );
-            }
-
-            err
+            })
         };
+
+        if is_method {
+            self.suggest_use_shadowed_binding_with_method(
+                source,
+                item_name,
+                &ty_str_reported,
+                &mut err,
+            );
+        }
+
+        // Check if we wrote `Self::Assoc(1)` as if it were a tuple ctor.
+        if let SelfSource::QPath(ty) = source
+            && let hir::TyKind::Path(hir::QPath::Resolved(_, path)) = ty.kind
+            && let Res::SelfTyAlias { alias_to: impl_def_id, .. } = path.res
+            && let DefKind::Impl { .. } = self.tcx.def_kind(impl_def_id)
+            && let Some(candidate) = tcx.associated_items(impl_def_id).find_by_name_and_kind(
+                self.tcx,
+                item_name,
+                ty::AssocKind::Type,
+                impl_def_id,
+            )
+            && let Some(adt_def) = tcx.type_of(candidate.def_id).skip_binder().ty_adt_def()
+            && adt_def.is_struct()
+            && adt_def.non_enum_variant().ctor_kind() == Some(CtorKind::Fn)
+        {
+            let def_path = tcx.def_path_str(adt_def.did());
+            err.span_suggestion(
+                ty.span.to(item_name.span),
+                format!("to construct a value of type `{}`, use the explicit path", def_path),
+                def_path,
+                Applicability::MachineApplicable,
+            );
+        }
+
         if tcx.sess.source_map().is_multiline(sugg_span) {
             err.span_label(sugg_span.with_hi(span.lo()), "");
         }

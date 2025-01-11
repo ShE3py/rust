@@ -71,8 +71,8 @@ pub(crate) enum MethodError<'tcx> {
     ErrorReported(ErrorGuaranteed),
 }
 
-// Contains a list of static methods that may apply, a list of unsatisfied trait predicates which
-// could lead to matches if satisfied, and a list of not-in-scope traits which may work.
+/// Contains a list of static methods that may apply, a list of unsatisfied trait predicates which
+/// could lead to matches if satisfied, and a list of not-in-scope traits which may work.
 #[derive(Debug)]
 pub(crate) struct NoMatchData<'tcx> {
     pub static_candidates: Vec<CandidateSource>,
@@ -83,8 +83,8 @@ pub(crate) struct NoMatchData<'tcx> {
     pub mode: probe::Mode,
 }
 
-// A pared down enum describing just the places from which a method
-// candidate can arise. Used for error reporting only.
+/// A pared down enum describing just the places from which a method
+/// candidate can arise. Used for error reporting only.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) enum CandidateSource {
     Impl(DefId),
