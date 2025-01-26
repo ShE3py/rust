@@ -31,6 +31,8 @@ note: must implement `io::Write`, `fmt::Write`, or have a `write_fmt` method
    |
 LL |     writeln!(fp, "hello world").unwrap();
    |              ^^
+   = note: trait bound `&dyn std::io::Write: std::io::Write`
+           which is required by `BufWriter<&dyn std::io::Write>: std::io::Write` was not satisfied
 note: there's an earlier shadowed binding `fp` of type `&dyn std::io::Write` that has method `write_fmt` available
   --> $DIR/mut-borrow-needed-by-trait.rs:12:9
    |
@@ -39,8 +41,6 @@ LL |     let fp: &dyn Write = match dest {
 ...
 LL |     let fp = BufWriter::new(fp);
    |         -- earlier `fp` shadowed here with type `BufWriter<&dyn std::io::Write>`
-   = note: trait bound `&dyn std::io::Write: std::io::Write`
-           which is required by `BufWriter<&dyn std::io::Write>: std::io::Write` was not satisfied
 
 error: aborting due to 3 previous errors
 

@@ -702,187 +702,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             err.note("consider using `--verbose` to print the full type name to the console");
         }
 
-        if is_method {
-            self.suggest_use_shadowed_binding_with_method(
-                source,
-                item_name,
-                &ty_str_reported,
-                &mut err,
-            );
-        }
-
-        // Check if we wrote `Self::Assoc(1)` as if it were a tuple ctor.
-        if let SelfSource::QPath(ty) = source
-            && let hir::TyKind::Path(hir::QPath::Resolved(_, path)) = ty.kind
-            && let Res::SelfTyAlias { alias_to: impl_def_id, .. } = path.res
-            && let DefKind::Impl { .. } = self.tcx.def_kind(impl_def_id)
-            && let Some(candidate) = tcx.associated_items(impl_def_id).find_by_name_and_kind(
-                self.tcx,
-                item_name,
-                ty::AssocKind::Type,
-                impl_def_id,
-            )
-            && let Some(adt_def) = tcx.type_of(candidate.def_id).skip_binder().ty_adt_def()
-            && adt_def.is_struct()
-            && adt_def.non_enum_variant().ctor_kind() == Some(CtorKind::Fn)
-        {
-            let def_path = tcx.def_path_str(adt_def.did());
-            err.span_suggestion(
-                ty.span.to(item_name.span),
-                format!("to construct a value of type `{}`, use the explicit path", def_path),
-                def_path,
-                Applicability::MachineApplicable,
-            );
-        }
-
-        // Suggests functions returning `Self` and such.
-        if matches!(source, SelfSource::QPath(_)) && args.is_some() {
-            self.find_builder_fn(&mut err, rcvr_ty, expr_id);
-        }
-
-        if tcx.ty_is_opaque_future(rcvr_ty) && item_name.name == sym::poll {
-            err.help(format!(
-                "method `poll` found on `Pin<&mut {ty_str}>`, \
-                see documentation for `std::pin::Pin`"
-            ));
-            err.help("self type must be pinned to call `Future::poll`, \
-                see https://rust-lang.github.io/async-book/04_pinning/01_chapter.html#pinning-in-practice"
-            );
-        }
-
-        if let Mode::MethodCall = mode
-            && let SelfSource::MethodCall(cal) = source
-        {
-            self.suggest_await_before_method(
-                &mut err,
-                item_name,
-                rcvr_ty,
-                cal,
-                span,
-                expected.only_has_type(self),
-            );
-        }
-        if let Some(span) =
-            tcx.resolutions(()).confused_type_with_std_module.get(&span.with_parent(None))
-        {
-            err.span_suggestion(
-                span.shrink_to_lo(),
-                "you are looking for the module in `std`, not the primitive type",
-                "std::",
-                Applicability::MachineApplicable,
-            );
-        }
-
-        // on pointers, check if the method would exist on a reference
-        if let SelfSource::MethodCall(rcvr_expr) = source
-            && let ty::RawPtr(ty, ptr_mutbl) = *rcvr_ty.kind()
-            && let Ok(pick) = self.lookup_probe_for_diagnostic(
-                item_name,
-                Ty::new_ref(tcx, ty::Region::new_error_misc(tcx), ty, ptr_mutbl),
-                self.tcx.hir().expect_expr(self.tcx.parent_hir_id(rcvr_expr.hir_id)),
-                ProbeScope::TraitsInScope,
-                None,
-            )
-            && let ty::Ref(_, _, sugg_mutbl) = *pick.self_ty.kind()
-            && (sugg_mutbl.is_not() || ptr_mutbl.is_mut())
-        {
-            let (method, method_anchor) = match sugg_mutbl {
-                Mutability::Not => {
-                    let method_anchor = match ptr_mutbl {
-                        Mutability::Not => "as_ref",
-                        Mutability::Mut => "as_ref-1",
-                    };
-                    ("as_ref", method_anchor)
-                }
-                Mutability::Mut => ("as_mut", "as_mut"),
-            };
-            err.span_note(
-                tcx.def_span(pick.item.def_id),
-                format!("the method `{item_name}` exists on the type `{ty}`", ty = pick.self_ty),
-            );
-            let mut_str = ptr_mutbl.ptr_str();
-            err.note(format!(
-                "you might want to use the unsafe method `<*{mut_str} T>::{method}` to get \
-                an optional reference to the value behind the pointer"
-            ));
-            err.note(format!(
-                "read the documentation for `<*{mut_str} T>::{method}` and ensure you satisfy its \
-                safety preconditions before calling it to avoid undefined behavior: \
-                https://doc.rust-lang.org/std/primitive.pointer.html#method.{method_anchor}"
-            ));
-        }
-
-        if let SelfSource::MethodCall(rcvr_expr) = source {
-            self.suggest_fn_call(&mut err, rcvr_expr, rcvr_ty, |output_ty| {
-                let call_expr =
-                    self.tcx.hir().expect_expr(self.tcx.parent_hir_id(rcvr_expr.hir_id));
-                let probe = self.lookup_probe_for_diagnostic(
-                    item_name,
-                    output_ty,
-                    call_expr,
-                    ProbeScope::AllTraits,
-                    expected.only_has_type(self),
-                );
-                probe.is_ok()
-            });
-            self.note_internal_mutation_in_method(
-                &mut err,
-                rcvr_expr,
-                expected.to_option(self),
-                rcvr_ty,
-            );
-        }
-
-        let mut custom_span_label = false;
-
-        let static_candidates = &mut no_match_data.static_candidates;
-
-        // `static_candidates` may have same candidates appended by
-        // inherent and extension, which may result in incorrect
-        // diagnostic.
-        static_candidates.dedup();
-
-        if !static_candidates.is_empty() {
-            err.note(
-                "found the following associated functions; to be used as methods, \
-                 functions must have a `self` parameter",
-            );
-            err.span_label(span, "this is an associated function, not a method");
-            custom_span_label = true;
-        }
-        if static_candidates.len() == 1 {
-            self.suggest_associated_call_syntax(
-                &mut err,
-                static_candidates,
-                rcvr_ty,
-                source,
-                item_name,
-                args,
-                sugg_span,
-            );
-            self.note_candidates_on_method_error(
-                rcvr_ty,
-                item_name,
-                source,
-                args,
-                span,
-                &mut err,
-                static_candidates,
-                None,
-            );
-        } else if static_candidates.len() > 1 {
-            self.note_candidates_on_method_error(
-                rcvr_ty,
-                item_name,
-                source,
-                args,
-                span,
-                &mut err,
-                static_candidates,
-                Some(sugg_span),
-            );
-        }
-
         // `Iterator` is in the prelude and exposes a `count` function,
         // avoid saying that `[T]: Iterator` was not satisfied.
         if item_name.name == sym::count && self.is_slice_ty(rcvr_ty, span) {
@@ -906,13 +725,16 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             err.span_label(span, format!("`{rcvr_ty}` is not an iterator"));
             err.multipart_suggestion_verbose(
                 "call `.into_iter()` first",
-                vec![(span.shrink_to_lo(), format!("into_iter()."))],
+                vec![(span.shrink_to_lo(), "into_iter().".to_owned())],
                 Applicability::MaybeIncorrect,
             );
             return err.emit();
         }
 
-        // Type parameters/traits bounds.
+        // Does `span` already have a label?
+        let mut custom_span_label = false;
+
+        // First of all, note which trait bounds were not satisfied.
         let mut bound_spans: SortedMap<Span, Vec<String>> = Default::default();
         let mut restrict_type_params = false;
         let mut suggested_derive = false;
@@ -1101,36 +923,36 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     // Unmet obligation comes from a `derive` macro, point at it once to
                     // avoid multiple span labels pointing at the same place.
                     Some(Node::Item(hir::Item {
-                        kind: hir::ItemKind::Impl(hir::Impl { of_trait, self_ty, .. }),
-                        ..
-                    })) if matches!(
+                                        kind: hir::ItemKind::Impl(hir::Impl { of_trait, self_ty, .. }),
+                                        ..
+                                    })) if matches!(
                         self_ty.span.ctxt().outer_expn_data().kind,
                         ExpnKind::Macro(MacroKind::Derive, _)
                     ) || matches!(
                         of_trait.as_ref().map(|t| t.path.span.ctxt().outer_expn_data().kind),
                         Some(ExpnKind::Macro(MacroKind::Derive, _))
                     ) =>
-                    {
-                        let span = self_ty.span.ctxt().outer_expn_data().call_site;
-                        let entry = spanned_predicates.entry(span);
-                        let entry = entry.or_insert_with(|| {
-                            (FxIndexSet::default(), FxIndexSet::default(), Vec::new())
-                        });
-                        entry.0.insert(span);
-                        entry.1.insert((
-                            span,
-                            "unsatisfied trait bound introduced in this `derive` macro",
-                        ));
-                        entry.2.push(p);
-                        skip_list.insert(p);
-                    }
+                        {
+                            let span = self_ty.span.ctxt().outer_expn_data().call_site;
+                            let entry = spanned_predicates.entry(span);
+                            let entry = entry.or_insert_with(|| {
+                                (FxIndexSet::default(), FxIndexSet::default(), Vec::new())
+                            });
+                            entry.0.insert(span);
+                            entry.1.insert((
+                                span,
+                                "unsatisfied trait bound introduced in this `derive` macro",
+                            ));
+                            entry.2.push(p);
+                            skip_list.insert(p);
+                        }
 
                     // Unmet obligation coming from an `impl`.
                     Some(Node::Item(hir::Item {
-                        kind: hir::ItemKind::Impl(hir::Impl { of_trait, self_ty, generics, .. }),
-                        span: item_span,
-                        ..
-                    })) => {
+                                        kind: hir::ItemKind::Impl(hir::Impl { of_trait, self_ty, generics, .. }),
+                                        span: item_span,
+                                        ..
+                                    })) => {
                         let sized_pred =
                             unsatisfied_predicates.iter().any(|(pred, _, _)| {
                                 match pred.kind().skip_binder() {
@@ -1180,10 +1002,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         entry.1.insert((self_ty.span, ""));
                     }
                     Some(Node::Item(hir::Item {
-                        kind: hir::ItemKind::Trait(rustc_ast::ast::IsAuto::Yes, ..),
-                        span: item_span,
-                        ..
-                    })) => {
+                                        kind: hir::ItemKind::Trait(rustc_ast::ast::IsAuto::Yes, ..),
+                                        span: item_span,
+                                        ..
+                                    })) => {
                         self.dcx().span_delayed_bug(
                             *item_span,
                             "auto trait is invoked with no method error, but no error reported?",
@@ -1191,10 +1013,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     }
                     Some(
                         Node::Item(hir::Item {
-                            ident,
-                            kind: hir::ItemKind::Trait(..) | hir::ItemKind::TraitAlias(..),
-                            ..
-                        })
+                                       ident,
+                                       kind: hir::ItemKind::Trait(..) | hir::ItemKind::TraitAlias(..),
+                                       ..
+                                   })
                         // We may also encounter unsatisfied GAT or method bounds
                         | Node::TraitItem(hir::TraitItem { ident, .. })
                         | Node::ImplItem(hir::ImplItem { ident, .. }),
@@ -1373,6 +1195,185 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
                 unsatisfied_bounds = true;
             }
+        }
+
+        if is_method {
+            self.suggest_use_shadowed_binding_with_method(
+                source,
+                item_name,
+                &ty_str_reported,
+                &mut err,
+            );
+        }
+
+        // Check if we wrote `Self::Assoc(1)` as if it were a tuple ctor.
+        if let SelfSource::QPath(ty) = source
+            && let hir::TyKind::Path(hir::QPath::Resolved(_, path)) = ty.kind
+            && let Res::SelfTyAlias { alias_to: impl_def_id, .. } = path.res
+            && let DefKind::Impl { .. } = self.tcx.def_kind(impl_def_id)
+            && let Some(candidate) = tcx.associated_items(impl_def_id).find_by_name_and_kind(
+                self.tcx,
+                item_name,
+                ty::AssocKind::Type,
+                impl_def_id,
+            )
+            && let Some(adt_def) = tcx.type_of(candidate.def_id).skip_binder().ty_adt_def()
+            && adt_def.is_struct()
+            && adt_def.non_enum_variant().ctor_kind() == Some(CtorKind::Fn)
+        {
+            let def_path = tcx.def_path_str(adt_def.did());
+            err.span_suggestion(
+                ty.span.to(item_name.span),
+                format!("to construct a value of type `{}`, use the explicit path", def_path),
+                def_path,
+                Applicability::MachineApplicable,
+            );
+        }
+
+        // Suggests functions returning `Self` and such.
+        if matches!(source, SelfSource::QPath(_)) && args.is_some() {
+            self.find_builder_fn(&mut err, rcvr_ty, expr_id);
+        }
+
+        if tcx.ty_is_opaque_future(rcvr_ty) && item_name.name == sym::poll {
+            err.help(format!(
+                "method `poll` found on `Pin<&mut {ty_str}>`, \
+                see documentation for `std::pin::Pin`"
+            ));
+            err.help("self type must be pinned to call `Future::poll`, \
+                see https://rust-lang.github.io/async-book/04_pinning/01_chapter.html#pinning-in-practice"
+            );
+        }
+
+        if let Mode::MethodCall = mode
+            && let SelfSource::MethodCall(cal) = source
+        {
+            self.suggest_await_before_method(
+                &mut err,
+                item_name,
+                rcvr_ty,
+                cal,
+                span,
+                expected.only_has_type(self),
+            );
+        }
+        if let Some(span) =
+            tcx.resolutions(()).confused_type_with_std_module.get(&span.with_parent(None))
+        {
+            err.span_suggestion(
+                span.shrink_to_lo(),
+                "you are looking for the module in `std`, not the primitive type",
+                "std::",
+                Applicability::MachineApplicable,
+            );
+        }
+
+        // on pointers, check if the method would exist on a reference
+        if let SelfSource::MethodCall(rcvr_expr) = source
+            && let ty::RawPtr(ty, ptr_mutbl) = *rcvr_ty.kind()
+            && let Ok(pick) = self.lookup_probe_for_diagnostic(
+                item_name,
+                Ty::new_ref(tcx, ty::Region::new_error_misc(tcx), ty, ptr_mutbl),
+                self.tcx.hir().expect_expr(self.tcx.parent_hir_id(rcvr_expr.hir_id)),
+                ProbeScope::TraitsInScope,
+                None,
+            )
+            && let ty::Ref(_, _, sugg_mutbl) = *pick.self_ty.kind()
+            && (sugg_mutbl.is_not() || ptr_mutbl.is_mut())
+        {
+            let (method, method_anchor) = match sugg_mutbl {
+                Mutability::Not => {
+                    let method_anchor = match ptr_mutbl {
+                        Mutability::Not => "as_ref",
+                        Mutability::Mut => "as_ref-1",
+                    };
+                    ("as_ref", method_anchor)
+                }
+                Mutability::Mut => ("as_mut", "as_mut"),
+            };
+            err.span_note(
+                tcx.def_span(pick.item.def_id),
+                format!("the method `{item_name}` exists on the type `{ty}`", ty = pick.self_ty),
+            );
+            let mut_str = ptr_mutbl.ptr_str();
+            err.note(format!(
+                "you might want to use the unsafe method `<*{mut_str} T>::{method}` to get \
+                an optional reference to the value behind the pointer"
+            ));
+            err.note(format!(
+                "read the documentation for `<*{mut_str} T>::{method}` and ensure you satisfy its \
+                safety preconditions before calling it to avoid undefined behavior: \
+                https://doc.rust-lang.org/std/primitive.pointer.html#method.{method_anchor}"
+            ));
+        }
+
+        if let SelfSource::MethodCall(rcvr_expr) = source {
+            self.suggest_fn_call(&mut err, rcvr_expr, rcvr_ty, |output_ty| {
+                let call_expr =
+                    self.tcx.hir().expect_expr(self.tcx.parent_hir_id(rcvr_expr.hir_id));
+                let probe = self.lookup_probe_for_diagnostic(
+                    item_name,
+                    output_ty,
+                    call_expr,
+                    ProbeScope::AllTraits,
+                    expected.only_has_type(self),
+                );
+                probe.is_ok()
+            });
+            self.note_internal_mutation_in_method(
+                &mut err,
+                rcvr_expr,
+                expected.to_option(self),
+                rcvr_ty,
+            );
+        }
+
+        let static_candidates = &mut no_match_data.static_candidates;
+
+        // `static_candidates` may have same candidates appended by
+        // inherent and extension, which may result in incorrect
+        // diagnostic.
+        static_candidates.dedup();
+
+        if !static_candidates.is_empty() {
+            err.note(
+                "found the following associated functions; to be used as methods, \
+                 functions must have a `self` parameter",
+            );
+            err.span_label(span, "this is an associated function, not a method");
+            custom_span_label = true;
+        }
+        if static_candidates.len() == 1 {
+            self.suggest_associated_call_syntax(
+                &mut err,
+                static_candidates,
+                rcvr_ty,
+                source,
+                item_name,
+                args,
+                sugg_span,
+            );
+            self.note_candidates_on_method_error(
+                rcvr_ty,
+                item_name,
+                source,
+                args,
+                span,
+                &mut err,
+                static_candidates,
+                None,
+            );
+        } else if static_candidates.len() > 1 {
+            self.note_candidates_on_method_error(
+                rcvr_ty,
+                item_name,
+                source,
+                args,
+                span,
+                &mut err,
+                static_candidates,
+                Some(sugg_span),
+            );
         }
 
         if unsatisfied_predicates.is_empty()
