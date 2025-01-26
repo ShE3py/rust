@@ -883,10 +883,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             );
         }
 
-        let mut bound_spans: SortedMap<Span, Vec<String>> = Default::default();
-        let mut restrict_type_params = false;
-        let mut suggested_derive = false;
-        let mut unsatisfied_bounds = false;
+        // `Iterator` is in the prelude and exposes a `count` function,
+        // avoid saying that `[T]: Iterator` was not satisfied.
         if item_name.name == sym::count && self.is_slice_ty(rcvr_ty, span) {
             let msg = "consider using `len` instead";
             if let SelfSource::MethodCall(_expr) = source {
@@ -900,8 +898,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     "`count` is defined on `{iterator_trait}`, which `{rcvr_ty}` does not implement"
                 ));
             }
-        } else if self.impl_into_iterator_should_be_iterator(rcvr_ty, span, unsatisfied_predicates)
-        {
+            return err.emit();
+        }
+
+        // Suggest `into_iter` for `IntoIterator` types.
+        if self.impl_into_iterator_should_be_iterator(rcvr_ty, span, unsatisfied_predicates) {
             err.span_label(span, format!("`{rcvr_ty}` is not an iterator"));
             err.multipart_suggestion_verbose(
                 "call `.into_iter()` first",
@@ -909,18 +910,25 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 Applicability::MaybeIncorrect,
             );
             return err.emit();
-        } else if !unsatisfied_predicates.is_empty() && matches!(rcvr_ty.kind(), ty::Param(_)) {
-            // We special case the situation where we are looking for `_` in
-            // `<TypeParam as _>::method` because otherwise the machinery will look for blanket
-            // implementations that have unsatisfied trait bounds to suggest, leading us to claim
-            // things like "we're looking for a trait with method `cmp`, both `Iterator` and `Ord`
-            // have one, in order to implement `Ord` you need to restrict `TypeParam: FnPtr` so
-            // that `impl<T: FnPtr> Ord for T` can apply", which is not what we want. We have a type
-            // parameter, we want to directly say "`Ord::cmp` and `Iterator::cmp` exist, restrict
-            // `TypeParam: Ord` or `TypeParam: Iterator`"". That is done further down when calling
-            // `self.suggest_traits_to_import`, so we ignore the `unsatisfied_predicates`
-            // suggestions.
-        } else if !unsatisfied_predicates.is_empty() {
+        }
+
+        // Type parameters/traits bounds.
+        let mut bound_spans: SortedMap<Span, Vec<String>> = Default::default();
+        let mut restrict_type_params = false;
+        let mut suggested_derive = false;
+        let mut unsatisfied_bounds = false;
+
+        // We special case the situation where we are looking for `_` in
+        // `<TypeParam as _>::method` because otherwise the machinery will look for blanket
+        // implementations that have unsatisfied trait bounds to suggest, leading us to claim
+        // things like "we're looking for a trait with method `cmp`, both `Iterator` and `Ord`
+        // have one, in order to implement `Ord` you need to restrict `TypeParam: FnPtr` so
+        // that `impl<T: FnPtr> Ord for T` can apply", which is not what we want. We have a type
+        // parameter, we want to directly say "`Ord::cmp` and `Iterator::cmp` exist, restrict
+        // `TypeParam: Ord` or `TypeParam: Iterator`"". That is done further down when calling
+        // `self.suggest_traits_to_import`, so we ignore the `unsatisfied_predicates`
+        // suggestions.
+        if !unsatisfied_predicates.is_empty() && !matches!(rcvr_ty.kind(), ty::Param(_)) {
             let mut type_params = FxIndexMap::default();
 
             // Pick out the list of unimplemented traits on the receiver.
@@ -1365,38 +1373,37 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
                 unsatisfied_bounds = true;
             }
-        } else if let ty::Adt(def, targs) = rcvr_ty.kind()
+        }
+
+        if unsatisfied_predicates.is_empty()
+            && let ty::Adt(def, targs) = rcvr_ty.kind()
             && let SelfSource::MethodCall(rcvr_expr) = source
+            && targs.len() == 1
         {
             // This is useful for methods on arbitrary self types that might have a simple
             // mutability difference, like calling a method on `Pin<&mut Self>` that is on
             // `Pin<&Self>`.
-            if targs.len() == 1 {
-                let mut item_segment = hir::PathSegment::invalid();
-                item_segment.ident = item_name;
-                for t in [Ty::new_mut_ref, Ty::new_imm_ref, |_, _, t| t] {
-                    let new_args =
-                        tcx.mk_args_from_iter(targs.iter().map(|arg| match arg.as_type() {
-                            Some(ty) => ty::GenericArg::from(t(
-                                tcx,
-                                tcx.lifetimes.re_erased,
-                                ty.peel_refs(),
-                            )),
-                            _ => arg,
-                        }));
-                    let rcvr_ty = Ty::new_adt(tcx, *def, new_args);
-                    if let Ok(method) = self.lookup_method_for_diagnostic(
-                        rcvr_ty,
-                        &item_segment,
-                        span,
-                        tcx.parent_hir_node(rcvr_expr.hir_id).expect_expr(),
-                        rcvr_expr,
-                    ) {
-                        err.span_note(
-                            tcx.def_span(method.def_id),
-                            format!("{item_kind} is available for `{rcvr_ty}`"),
-                        );
+            let mut item_segment = hir::PathSegment::invalid();
+            item_segment.ident = item_name;
+            for t in [Ty::new_mut_ref, Ty::new_imm_ref, |_, _, t| t] {
+                let new_args = tcx.mk_args_from_iter(targs.iter().map(|arg| match arg.as_type() {
+                    Some(ty) => {
+                        ty::GenericArg::from(t(tcx, tcx.lifetimes.re_erased, ty.peel_refs()))
                     }
+                    _ => arg,
+                }));
+                let rcvr_ty = Ty::new_adt(tcx, *def, new_args);
+                if let Ok(method) = self.lookup_method_for_diagnostic(
+                    rcvr_ty,
+                    &item_segment,
+                    span,
+                    tcx.parent_hir_node(rcvr_expr.hir_id).expect_expr(),
+                    rcvr_expr,
+                ) {
+                    err.span_note(
+                        tcx.def_span(method.def_id),
+                        format!("{item_kind} is available for `{rcvr_ty}`"),
+                    );
                 }
             }
         }
