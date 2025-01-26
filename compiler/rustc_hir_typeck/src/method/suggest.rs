@@ -665,6 +665,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
         }
 
+        if short_ty_str.len() < ty_str.len() && ty_str.len() > 10 {
+            ty_str = short_ty_str;
+        }
+
         let is_write = sugg_span.ctxt().outer_expn_data().macro_def_id.is_some_and(|def_id| {
             tcx.is_diagnostic_item(sym::write_macro, def_id)
                 || tcx.is_diagnostic_item(sym::writeln_macro, def_id)
@@ -687,6 +691,16 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 trait_missing_method,
             })
         };
+
+        // Highlight the whole expression (#108609)
+        if tcx.sess.source_map().is_multiline(sugg_span) {
+            err.span_label(sugg_span.with_hi(span.lo()), "");
+        }
+
+        if let Some(file) = ty_file {
+            err.note(format!("the full type name has been written to '{}'", file.display(),));
+            err.note("consider using `--verbose` to print the full type name to the console");
+        }
 
         if is_method {
             self.suggest_use_shadowed_binding_with_method(
@@ -721,22 +735,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             );
         }
 
-        if tcx.sess.source_map().is_multiline(sugg_span) {
-            err.span_label(sugg_span.with_hi(span.lo()), "");
-        }
-
-        if short_ty_str.len() < ty_str.len() && ty_str.len() > 10 {
-            ty_str = short_ty_str;
-        }
-
-        if let Some(file) = ty_file {
-            err.note(format!("the full type name has been written to '{}'", file.display(),));
-            err.note("consider using `--verbose` to print the full type name to the console");
-        }
-        if rcvr_ty.references_error() {
-            err.downgrade_to_delayed_bug();
-        }
-
+        // Suggests functions returning `Self` and such.
         if matches!(source, SelfSource::QPath(_)) && args.is_some() {
             self.find_builder_fn(&mut err, rcvr_ty, expr_id);
         }
@@ -812,14 +811,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 https://doc.rust-lang.org/std/primitive.pointer.html#method.{method_anchor}"
             ));
         }
-
-        let mut ty_span = match rcvr_ty.kind() {
-            ty::Param(param_type) => {
-                Some(param_type.span_from_generics(self.tcx, self.body_id.to_def_id()))
-            }
-            ty::Adt(def, _) if def.did().is_local() => Some(tcx.def_span(def.did())),
-            _ => None,
-        };
 
         if let SelfSource::MethodCall(rcvr_expr) = source {
             self.suggest_fn_call(&mut err, rcvr_expr, rcvr_ty, |output_ty| {
@@ -1537,6 +1528,13 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         self.suggest_unwrapping_inner_self(&mut err, source, rcvr_ty, item_name);
 
+        let mut ty_span = match rcvr_ty.kind() {
+            ty::Param(param_type) => {
+                Some(param_type.span_from_generics(self.tcx, self.body_id.to_def_id()))
+            }
+            ty::Adt(def, _) if def.did().is_local() => Some(tcx.def_span(def.did())),
+            _ => None,
+        };
         for (span, mut bounds) in bound_spans {
             if !tcx.sess.source_map().is_span_accessible(span) {
                 continue;
