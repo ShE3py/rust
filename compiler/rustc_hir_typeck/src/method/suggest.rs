@@ -1401,9 +1401,18 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
         }
 
-        let mut find_candidate_for_method = false;
+        // If the method name is the name of a field with a function or closure type,
+        // give a helping note that it has to be called as `(x.f)(...)`.
+        let suggested_calling_field_as_fn = matches!(source, SelfSource::MethodCall(expr) if self.suggest_calling_field_as_fn(span, rcvr_ty, expr, item_name, &mut err));
 
-        let mut label_span_not_found = |err: &mut Diag<'_>| {
+        // Check method chain for possible candidates.
+        let mut found_candidates_in_method_chain = false;
+
+        // Only span `item not found` if a span isn't already present
+        if !custom_span_label
+            && !suggested_calling_field_as_fn
+            && !matches!(source, SelfSource::MethodCall(_) if similar_candidate.is_some())
+        {
             if unsatisfied_predicates.is_empty() {
                 err.span_label(span, format!("{item_kind} not found in `{ty_str}`"));
                 let is_string_or_ref_str = match rcvr_ty.kind() {
@@ -1478,7 +1487,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         err.note(format!(
                             "the {item_kind} was found for\n{type_candidates}{additional_types}"
                         ));
-                        find_candidate_for_method = mode == Mode::MethodCall;
+                        found_candidates_in_method_chain = true;
                     }
                 }
             } else {
@@ -1491,17 +1500,14 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
         };
 
-        // If the method name is the name of a field with a function or closure type,
-        // give a helping note that it has to be called as `(x.f)(...)`.
-        if let SelfSource::MethodCall(expr) = source {
-            if !self.suggest_calling_field_as_fn(span, rcvr_ty, expr, item_name, &mut err)
-                && similar_candidate.is_none()
-                && !custom_span_label
-            {
-                label_span_not_found(&mut err);
-            }
-        } else if !custom_span_label {
-            label_span_not_found(&mut err);
+        if !found_candidates_in_method_chain {
+            self.lookup_segments_chain_for_no_match_method(
+                &mut err,
+                item_name,
+                item_kind,
+                source,
+                no_match_data,
+            );
         }
 
         let confusable_suggested = self.confusable_method_name(
@@ -1584,7 +1590,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 args.map(|args| args.len() + 1),
                 source,
                 no_match_data.out_of_scope_traits.clone(),
-                static_candidates,
+                &no_match_data.static_candidates,
                 unsatisfied_bounds,
                 expected.only_has_type(self),
                 trait_missing_method,
@@ -1735,16 +1741,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     mode,
                 );
             }
-        }
-
-        if !find_candidate_for_method {
-            self.lookup_segments_chain_for_no_match_method(
-                &mut err,
-                item_name,
-                item_kind,
-                source,
-                no_match_data,
-            );
         }
 
         self.note_derefed_ty_has_method(&mut err, source, rcvr_ty, item_name, expected);
