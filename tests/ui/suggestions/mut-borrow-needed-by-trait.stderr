@@ -39,9 +39,8 @@ LL |     let fp: &dyn Write = match dest {
 ...
 LL |     let fp = BufWriter::new(fp);
    |         -- earlier `fp` shadowed here with type `BufWriter<&dyn std::io::Write>`
-   = note: the following trait bounds were not satisfied:
-           `&dyn std::io::Write: std::io::Write`
-           which is required by `BufWriter<&dyn std::io::Write>: std::io::Write`
+   = note: trait bound `&dyn std::io::Write: std::io::Write`
+           which is required by `BufWriter<&dyn std::io::Write>: std::io::Write` was not satisfied
 
 error: aborting due to 3 previous errors
 

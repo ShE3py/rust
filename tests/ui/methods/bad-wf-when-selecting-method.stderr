@@ -41,8 +41,7 @@ LL | struct Wrapper<T: Wf<Assoc = U>, U>(T);
 LL |     Wrapper(t).needs_sized();
    |                ^^^^^^^^^^^ method cannot be called on `Wrapper<T, _>` due to unsatisfied trait bounds
    |
-   = note: the following trait bounds were not satisfied:
-           `T: Wf`
+   = note: trait bound `T: Wf` was not satisfied
 help: consider restricting the type parameter to satisfy the trait bound
    |
 LL | fn test<T>(t: T) where T: Wf {

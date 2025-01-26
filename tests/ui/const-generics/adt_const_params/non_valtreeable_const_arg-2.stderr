@@ -24,9 +24,8 @@ LL | struct Wrapper<const F: fn()>;
 LL |     Wrapper::<function>::call;
    |                          ^^^^ function or associated item cannot be called on `Wrapper<function>` due to unsatisfied trait bounds
    |
-   = note: the following trait bounds were not satisfied:
-           `Wrapper<function>: Fn<_>`
-           which is required by `&Wrapper<function>: Fn<_>`
+   = note: trait bound `Wrapper<function>: Fn<_>`
+           which is required by `&Wrapper<function>: Fn<_>` was not satisfied
 note: the trait `Fn` must be implemented
   --> $SRC_DIR/core/src/ops/function.rs:LL:COL
    = help: items from traits can only be used if the trait is implemented and in scope

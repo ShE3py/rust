@@ -9,9 +9,8 @@ LL |     let _ = Struct::<A>::new().clone();
 LL | pub struct Struct<A>(A);
    | -------------------- doesn't satisfy `Struct<A>: Clone`
    |
-   = note: the following trait bounds were not satisfied:
-           `A: Clone`
-           which is required by `Struct<A>: Clone`
+   = note: trait bound `A: Clone`
+           which is required by `Struct<A>: Clone` was not satisfied
 help: consider restricting the type parameter to satisfy the trait bound
    |
 LL | fn crash<A>() where A: Clone {

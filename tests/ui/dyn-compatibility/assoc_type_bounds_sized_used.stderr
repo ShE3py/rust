@@ -4,9 +4,8 @@ error[E0599]: the function or associated item `default` exists for associated ty
 LL |     let _ = <T as Bop>::Bar::default();
    |                              ^^^^^^^ function or associated item cannot be called on `<T as Bop>::Bar` due to unsatisfied trait bounds
    |
-   = note: the following trait bounds were not satisfied:
-           `T: Sized`
-           which is required by `<T as Bop>::Bar: Default`
+   = note: trait bound `T: Sized`
+           which is required by `<T as Bop>::Bar: Default` was not satisfied
 help: consider restricting the type parameter to satisfy the trait bound
    |
 LL | fn bop<T: Bop + ?Sized>() where T: Sized {

@@ -1302,8 +1302,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             bound_list.sort_by_key(|(pos, _)| *pos); // Keep the original predicate order.
 
             if !bound_list.is_empty() || !skip_list.is_empty() {
-                let bound_list =
-                    bound_list.into_iter().map(|(_, path)| path).collect::<Vec<_>>().join("\n");
+                let bound_list = bound_list.into_iter().map(|(_, path)| path).collect::<Vec<_>>();
                 let actual_prefix = rcvr_ty.prefix_string(self.tcx);
                 info!("unimplemented_traits.len() == {}", unimplemented_traits.len());
                 let mut long_ty_file = None;
@@ -1349,9 +1348,14 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     err.span_label(span, label);
                 }
                 if !bound_list.is_empty() {
-                    err.note(format!(
-                        "the following trait bounds were not satisfied:\n{bound_list}"
-                    ));
+                    err.note(if let [bound] = &bound_list[..] {
+                        format!("trait bound {bound} was not satisfied")
+                    } else {
+                        format!(
+                            "the following trait bounds were not satisfied:\n{}",
+                            bound_list.join("\n")
+                        )
+                    });
                 }
                 for note in notes {
                     err.note(note);

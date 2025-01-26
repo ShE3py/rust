@@ -59,9 +59,8 @@ LL | |      .take()
    | |______|
    |
    |
-   = note: the following trait bounds were not satisfied:
-           `Foo: Iterator`
-           which is required by `&mut Foo: Iterator`
+   = note: trait bound `Foo: Iterator`
+           which is required by `&mut Foo: Iterator` was not satisfied
 note: the trait `Iterator` must be implemented
   --> $SRC_DIR/core/src/iter/traits/iterator.rs:LL:COL
    = help: items from traits can only be used if the trait is implemented and in scope

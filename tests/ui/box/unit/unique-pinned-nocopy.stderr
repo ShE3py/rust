@@ -7,9 +7,8 @@ LL | struct R {
 LL |     let _j = i.clone();
    |                ^^^^^ method cannot be called on `Box<R>` due to unsatisfied trait bounds
    |
-   = note: the following trait bounds were not satisfied:
-           `R: Clone`
-           which is required by `Box<R>: Clone`
+   = note: trait bound `R: Clone`
+           which is required by `Box<R>: Clone` was not satisfied
 help: consider annotating `R` with `#[derive(Clone)]`
    |
 LL + #[derive(Clone)]

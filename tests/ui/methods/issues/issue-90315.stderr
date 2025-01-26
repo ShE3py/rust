@@ -169,9 +169,8 @@ error[E0599]: `usize` is not an iterator
 LL |     let _res = b.take(1)..a;
    |                  ^^^^ `usize` is not an iterator
    |
-   = note: the following trait bounds were not satisfied:
-           `usize: Iterator`
-           which is required by `&mut usize: Iterator`
+   = note: trait bound `usize: Iterator`
+           which is required by `&mut usize: Iterator` was not satisfied
 
 error[E0689]: can't call method `take` on ambiguous numeric type `{integer}`
   --> $DIR/issue-90315.rs:71:25

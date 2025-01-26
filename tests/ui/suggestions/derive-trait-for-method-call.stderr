@@ -90,9 +90,8 @@ LL | impl<X: Clone + Default + , Y: Clone + Default> Foo<X, Y> {
    |                                        ^^^^^^^  ---------
    |                                        |
    |                                        unsatisfied trait bound introduced here
-   = note: the following trait bounds were not satisfied:
-           `Enum: Clone`
-           which is required by `Vec<Enum>: Clone`
+   = note: trait bound `Enum: Clone`
+           which is required by `Vec<Enum>: Clone` was not satisfied
 help: consider annotating `Enum` with `#[derive(Clone)]`
    |
 LL + #[derive(Clone)]
